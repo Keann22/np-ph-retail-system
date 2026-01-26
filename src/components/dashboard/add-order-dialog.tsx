@@ -7,8 +7,8 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { addDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, doc, increment } from "firebase/firestore";
+import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore } from "@/firebase";
+import { collection, doc, getDocs, increment } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -40,20 +40,16 @@ const orderSchema = z.object({
 
 type OrderFormValues = z.infer<typeof orderSchema>;
 
-// Mock Data - replace with your actual data fetching logic
-type Customer = { id: string; firstName: string; lastName: string; };
-type Product = { id: string; name: string; stock: number; costPrice: number; sellingPrice: number; };
+type Customer = { id: string; firstName: string; lastName: string; [key: string]: any;};
+type Product = { id: string; name: string; stock: number; costPrice: number; sellingPrice: number; [key: string]: any;};
 
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const customersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'customers') : null, [firestore]);
-  const productsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'products') : null, [firestore]);
-
-  const { data: customers } = useCollection<Omit<Customer, 'id'>>(customersQuery);
-  const { data: products } = useCollection<Omit<Product, 'id'>>(productsQuery);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
@@ -66,6 +62,34 @@ export function AddOrderDialog() {
       platformFees: 0,
     },
   });
+
+  // Fetch data only when the dialog opens to prevent re-renders from onSnapshot
+  useEffect(() => {
+    if (open && firestore) {
+      const fetchInitialData = async () => {
+        try {
+          const customersQuery = collection(firestore, 'customers');
+          const customerSnapshot = await getDocs(customersQuery);
+          const customerList = customerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+          setCustomers(customerList);
+
+          const productsQuery = collection(firestore, 'products');
+          const productSnapshot = await getDocs(productsQuery);
+          const productList = productSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+          setProducts(productList);
+        } catch (error) {
+          console.error("Error fetching data for order dialog:", error);
+          toast({
+            variant: "destructive",
+            title: "Failed to load data",
+            description: "Could not fetch customers and products. Please try again.",
+          });
+        }
+      };
+      fetchInitialData();
+    }
+  }, [open, firestore, toast]);
+
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
