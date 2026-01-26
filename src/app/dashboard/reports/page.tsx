@@ -8,6 +8,7 @@ import {
   startOfYesterday,
   endOfYesterday,
   format,
+  isWithinInterval,
 } from 'date-fns';
 import { Calendar as CalendarIcon, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -62,23 +63,21 @@ export default function ReportsPage() {
 
   const firestore = useFirestore();
 
+  // Query for all orders, ordered by date. Filtering will happen on the client.
   const ordersQuery = useMemoFirebase(() => {
-    if (!firestore || !date?.from || !date?.to) return null;
+    if (!firestore) return null;
     return query(
       collection(firestore, 'orders'),
-      where('orderStatus', '==', 'Processing'),
-      where('orderDate', '>=', date.from.toISOString()),
-      where('orderDate', '<=', date.to.toISOString()),
       orderBy('orderDate', 'desc')
     );
-  }, [firestore, date]);
+  }, [firestore]);
   
   const customersQuery = useMemoFirebase(
     () => (firestore ? collection(firestore, 'customers') : null),
     [firestore]
   );
 
-  const { data: orders, isLoading: isLoadingOrders } = useCollection<Omit<Order, 'id'>>(ordersQuery);
+  const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Omit<Order, 'id'>>(ordersQuery);
   const { data: customers, isLoading: isLoadingCustomers } = useCollection<Omit<Customer, 'id'>>(customersQuery);
 
   const isLoading = isLoadingOrders || isLoadingCustomers;
@@ -89,14 +88,25 @@ export default function ReportsPage() {
   }, [customers]);
 
   const formattedOrders = useMemo(() => {
-    if (!orders) return [];
-    return orders.map((order) => ({
-      ...order,
-      customerName: customerMap.get(order.customerId) || 'Unknown Customer',
-      formattedDate: format(new Date(order.orderDate), 'PPP p'),
-      formattedTotal: `₱${order.totalAmount.toFixed(2)}`,
-    }));
-  }, [orders, customerMap]);
+    if (!allOrders || !date?.from) return [];
+
+    const intervalEnd = date.to ?? endOfToday(date.from);
+
+    return allOrders
+      .filter(order => {
+        const orderDate = new Date(order.orderDate);
+        return (
+          order.orderStatus === 'Processing' &&
+          isWithinInterval(orderDate, { start: date.from!, end: intervalEnd })
+        );
+      })
+      .map((order) => ({
+        ...order,
+        customerName: customerMap.get(order.customerId) || 'Unknown Customer',
+        formattedDate: format(new Date(order.orderDate), 'PPP p'),
+        formattedTotal: `₱${order.totalAmount.toFixed(2)}`,
+      }));
+  }, [allOrders, customerMap, date]);
   
   const setDatePreset = (preset: 'today' | 'yesterday') => {
     const from = preset === 'today' ? startOfToday() : startOfYesterday();
