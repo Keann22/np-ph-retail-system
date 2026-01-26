@@ -24,9 +24,15 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isAdmin() || request.auth.uid == userId;
-      allow write: if isAdmin();
-      allow delete: if isOwner() && request.auth.uid != userId; // Owner can delete others, but not themselves
+      // A user can create their own document and read it.
+      allow get: if request.auth.uid == userId || isAdmin();
+      allow create: if request.auth.uid == userId;
+      
+      // An admin can see all users and update anyone's roles.
+      allow list, update: if isAdmin();
+
+      // An owner can delete users (but not themselves).
+      allow delete: if isOwner() && request.auth.uid != userId;
     }
     
     match /products/{productId} {
@@ -71,11 +77,6 @@ service cloud.firestore {
     }
     match /badDebts/{badDebtId} {
         allow read, write: if isAdmin();
-    }
-
-    // Default rule: deny everything else for safety
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }

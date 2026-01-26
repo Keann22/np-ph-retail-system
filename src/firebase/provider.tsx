@@ -91,12 +91,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             const userDocSnap = await getDoc(userDocRef);
             if (!userDocSnap.exists()) {
                 try {
-                    // Check if this is the first user ever to determine if they should be Owner
-                    const usersCollectionRef = collection(firestore, 'users');
-                    const firstUserQuery = query(usersCollectionRef, limit(1));
-                    const existingUsersSnapshot = await getDocs(firstUserQuery);
-                    const isFirstUser = existingUsersSnapshot.empty;
-
+                    // This logic defaults all new users to 'Sales' to prevent permission errors on sign-up.
+                    // The first user (Owner) must be promoted manually in the Firestore console.
                     const nameParts = firebaseUser.displayName?.split(' ') || (firebaseUser.email?.split('@')[0] || '').split('.');
                     const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : 'New';
                     const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'User';
@@ -105,11 +101,11 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
                         firstName,
                         lastName,
                         email: firebaseUser.email,
-                        roles: isFirstUser ? ['Owner'] : ['Sales'],
+                        roles: ['Sales'],
                     });
                 } catch (e) {
                     console.error("Error creating user document:", e);
-                    // We won't set userError here as it might not be a fatal login issue
+                    // This could still fail if the 'create' rule is wrong, but it's less likely.
                 }
             }
         }
