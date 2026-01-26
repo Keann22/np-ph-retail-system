@@ -137,8 +137,9 @@ service cloud.firestore {
      * @principle Enforces administrative control over application-wide settings.
      */
     match /roles/{roleId} {
+      allow read, write: if isOwnerAccount();
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'admin': true, 'owner': true}));
+      allow create, update, delete: if isExistingDoc() && hasAnyRole({'admin': true, 'owner': true});
     }
 
     /**
@@ -149,9 +150,10 @@ service cloud.firestore {
      * @principle Enforces Role-Based Access Control (RBAC) for business data.
      */
     match /products/{productId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true, 'warehouse_manager': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'sales': true, 'admin': true, 'owner': true, 'warehouse_manager': true});
+      allow create: if hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
     }
 
     /**
@@ -162,9 +164,10 @@ service cloud.firestore {
      * @principle Enforces Role-Based Access Control (RBAC) for business data.
      */
     match /categories/{categoryId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true, 'warehouse_manager': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'sales': true, 'admin': true, 'owner': true, 'warehouse_manager': true});
+      allow create: if hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
     }
 
     /**
@@ -175,9 +178,10 @@ service cloud.firestore {
      * @principle Enforces strict RBAC for sensitive operational data.
      */
     match /inventoryMovements/{inventoryMovementId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
+      allow create: if hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
     }
 
     /**
@@ -188,9 +192,10 @@ service cloud.firestore {
      * @principle Enforces RBAC to segregate access between different business functions.
      */
     match /customers/{customerId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow create: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'sales': true, 'admin': true, 'owner': true});
     }
     
     /**
@@ -201,9 +206,10 @@ service cloud.firestore {
      * @principle Enforces RBAC for core business transaction data.
      */
     match /orders/{orderId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow create: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'sales': true, 'admin': true, 'owner': true});
     }
     
     /**
@@ -214,9 +220,10 @@ service cloud.firestore {
      * @principle Enforces RBAC for core business transaction data.
      */
     match /orderItems/{orderItemId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow create: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'sales': true, 'admin': true, 'owner': true});
     }
     
     /**
@@ -227,9 +234,10 @@ service cloud.firestore {
      * @principle Enforces RBAC for sensitive financial data.
      */
     match /payments/{paymentId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow create: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'sales': true, 'admin': true, 'owner': true});
     }
 
     /**
@@ -240,9 +248,10 @@ service cloud.firestore {
      * @principle Restricts access to highly sensitive financial data to administrative roles.
      */
     match /expenses/{expenseId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'admin': true, 'owner': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'admin': true, 'owner': true});
+      allow create: if hasAnyRole({'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'admin': true, 'owner': true});
     }
     
     /**
@@ -253,9 +262,10 @@ service cloud.firestore {
      * @principle Enforces RBAC for core business transaction data.
      */
     match /returns/{returnId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow create: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'sales': true, 'admin': true, 'owner': true});
     }
 
     /**
@@ -266,9 +276,10 @@ service cloud.firestore {
      * @principle Enforces RBAC for sensitive financial data.
      */
     match /refunds/{refundId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow create: if hasAnyRole({'sales': true, 'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'sales': true, 'admin': true, 'owner': true});
     }
 
     /**
@@ -279,9 +290,10 @@ service cloud.firestore {
      * @principle Restricts access to highly sensitive financial data to administrative roles.
      */
     match /badDebts/{badDebtId} {
-      allow get, list: if isOwnerAccount() || hasAnyRole({'admin': true, 'owner': true});
-      allow create: if isOwnerAccount() || hasAnyRole({'admin': true, 'owner': true});
-      allow update, delete: if isExistingDoc() && (isOwnerAccount() || hasAnyRole({'admin': true, 'owner': true}));
+      allow read, write: if isOwnerAccount();
+      allow get, list: if hasAnyRole({'admin': true, 'owner': true});
+      allow create: if hasAnyRole({'admin': true, 'owner': true});
+      allow update, delete: if isExistingDoc() && hasAnyRole({'admin': true, 'owner': true});
     }
   }
 }
