@@ -374,16 +374,19 @@ export function AddOrderDialog() {
                                     <CommandGroup>
                                         {products?.map((p) => (
                                         <CommandItem
-                                            value={p.name}
+                                            value={p.id}
                                             key={p.id}
-                                            onSelect={() => {
-                                                append({
-                                                    productId: p.id,
-                                                    productName: p.name,
-                                                    quantity: 1,
-                                                    costPriceAtSale: p.costPrice,
-                                                    sellingPriceAtSale: p.sellingPrice,
-                                                });
+                                            onSelect={(selectedProductId) => {
+                                                const productToAdd = products?.find(prod => prod.id === selectedProductId);
+                                                if (productToAdd) {
+                                                    append({
+                                                        productId: productToAdd.id,
+                                                        productName: productToAdd.name,
+                                                        quantity: 1,
+                                                        costPriceAtSale: productToAdd.costPrice,
+                                                        sellingPriceAtSale: productToAdd.sellingPrice,
+                                                    });
+                                                }
                                                 setProductPopoverOpen(false);
                                             }}
                                         >
