@@ -2,7 +2,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, doc, getDoc, setDoc, collection, getDocs, limit, query } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { Storage } from 'firebase/storage';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
@@ -74,8 +74,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
   // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
-    if (!auth) { // If no Auth service instance, cannot determine user state
-      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
+    if (!auth || !firestore) { // If no Auth service instance, cannot determine user state
+      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth and Firestore services must be provided.") });
       return;
     }
 
@@ -83,7 +83,36 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      (firebaseUser) => { // Auth state determined
+      async (firebaseUser) => { // Auth state determined
+        if (firebaseUser) {
+            // When a user signs in, check if they have a user profile document.
+            // If not, create one. This handles new sign-ups.
+            const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (!userDocSnap.exists()) {
+                try {
+                    // Check if this is the first user ever to determine if they should be Owner
+                    const usersCollectionRef = collection(firestore, 'users');
+                    const firstUserQuery = query(usersCollectionRef, limit(1));
+                    const existingUsersSnapshot = await getDocs(firstUserQuery);
+                    const isFirstUser = existingUsersSnapshot.empty;
+
+                    const nameParts = firebaseUser.displayName?.split(' ') || (firebaseUser.email?.split('@')[0] || '').split('.');
+                    const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : 'New';
+                    const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'User';
+
+                    await setDoc(userDocRef, {
+                        firstName,
+                        lastName,
+                        email: firebaseUser.email,
+                        roles: isFirstUser ? ['Owner'] : ['Sales'],
+                    });
+                } catch (e) {
+                    console.error("Error creating user document:", e);
+                    // We won't set userError here as it might not be a fatal login issue
+                }
+            }
+        }
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
@@ -92,7 +121,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       }
     );
     return () => unsubscribe(); // Cleanup
-  }, [auth]); // Depends on the auth instance
+  }, [auth, firestore]); // Depends on the auth instance
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
