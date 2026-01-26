@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, useFirestore } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -54,9 +54,10 @@ export function BulkUploadProductsDialog() {
     }
 
     const headers = lines[0].split(',').map(h => h.trim());
-    const dataRows = lines.slice(1);
     
-    const requiredHeaders = canViewCostPrice ? EXPECTED_HEADERS : EXPECTED_HEADERS.filter(h => h !== 'costPrice');
+    const requiredHeaders = canViewCostPrice 
+      ? EXPECTED_HEADERS 
+      : EXPECTED_HEADERS.filter(h => h !== 'costPrice');
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
     if (missingHeaders.length > 0) {
@@ -72,7 +73,16 @@ export function BulkUploadProductsDialog() {
     const productsCollection = collection(firestore, 'products');
     const inventoryMovementsCollection = collection(firestore, 'inventoryMovements');
 
-    const uploadPromises = dataRows.map(async (line) => {
+    // Fetch all existing SKUs to prevent duplicates
+    const existingProductsSnapshot = await getDocs(productsCollection);
+    const existingSkus = new Set(existingProductsSnapshot.docs.map(doc => doc.data().sku));
+
+    const dataRows = lines.slice(1);
+    const uploadPromises: Promise<void>[] = [];
+    let successfulUploads = 0;
+    let skippedCount = 0;
+
+    for (const line of dataRows) {
         // This is a naive CSV parser. It will fail if values contain commas.
         const values = line.split(',');
         const productObj: {[key: string]: any} = {};
@@ -80,12 +90,26 @@ export function BulkUploadProductsDialog() {
             productObj[header] = values[index]?.trim() || '';
         });
 
-        if (!productObj.name && !productObj.sku) {
-            // If both name and SKU are missing, it's likely an empty or invalid row.
-            // We'll just skip it without throwing an error to avoid halting the entire batch.
+        const sku = productObj.sku;
+
+        if (!productObj.name && !sku) {
             console.warn(`Skipping row because both name and SKU are missing: ${line}`);
-            return;
+            continue; // Skip what seems to be an empty row
         }
+
+        if (!sku) {
+            console.warn(`Skipping product "${productObj.name}" because SKU is missing.`);
+            skippedCount++;
+            continue; // Skip products without an SKU
+        }
+
+        if (existingSkus.has(sku)) {
+            console.warn(`Skipping duplicate SKU: ${sku}`);
+            skippedCount++;
+            continue; // Skip if SKU already exists in DB or in a previous row of this file
+        }
+        
+        existingSkus.add(sku); // Add to set to catch duplicates within the same file
 
         const stock = parseInt(productObj.stock, 10) || 0;
         const sellingPrice = parseFloat(productObj.sellingPrice) || 0;
@@ -93,7 +117,7 @@ export function BulkUploadProductsDialog() {
 
         const productData = {
             name: productObj.name || '',
-            sku: productObj.sku || '',
+            sku: sku,
             description: productObj.description || '',
             categoryId: productObj.categoryId || 'Uncategorized',
             supplierLink: productObj.supplierLink || '',
@@ -103,35 +127,39 @@ export function BulkUploadProductsDialog() {
             stock,
         };
 
-        // Await the creation to get the ID for the inventory movement
-        const newProductRef = await addDocumentNonBlocking(productsCollection, productData);
-        if (newProductRef && stock > 0) {
-             await addDocumentNonBlocking(inventoryMovementsCollection, {
-                productId: newProductRef.id,
-                quantityChange: stock,
-                movementType: 'initial_stock',
-                timestamp: new Date().toISOString(),
-                reason: 'Bulk upload',
+        const uploadPromise = addDocumentNonBlocking(productsCollection, productData)
+            .then(async (newProductRef) => {
+                if (newProductRef && stock > 0) {
+                    await addDocumentNonBlocking(inventoryMovementsCollection, {
+                        productId: newProductRef.id,
+                        quantityChange: stock,
+                        movementType: 'initial_stock',
+                        timestamp: new Date().toISOString(),
+                        reason: 'Bulk upload',
+                    });
+                }
+                successfulUploads++;
+            }).catch(err => {
+                console.error(`Failed to upload product with SKU ${sku}:`, err);
             });
-        }
-    });
-
-    const results = await Promise.allSettled(uploadPromises);
-    
-    const successfulUploads = results.filter(r => r.status === 'fulfilled').length;
-    const failedUploads = results.filter(r => r.status === 'rejected');
-
-    if(failedUploads.length > 0) {
-        console.error("Some products failed to upload:", failedUploads.map(f => (f as PromiseRejectedResult).reason));
+        
+        uploadPromises.push(uploadPromise);
     }
 
+    await Promise.all(uploadPromises);
+    
     setIsUploading(false);
     setOpen(false);
     form.reset();
 
+    let description = `${successfulUploads} products were uploaded.`;
+    if (skippedCount > 0) {
+        description += ` ${skippedCount} products were skipped due to missing or duplicate SKUs. Check console for details.`;
+    }
+
     toast({
       title: "Bulk Upload Complete",
-      description: `${successfulUploads} products uploaded. ${failedUploads.length > 0 ? `${failedUploads.length} failed (see console for details).` : ''}`,
+      description: description,
     });
   }
 
@@ -186,7 +214,7 @@ export function BulkUploadProductsDialog() {
              <FormField
                 control={form.control}
                 name="csvFile"
-                render={({ field: { onChange, value, ...fieldProps } }) => (
+                render={({ field: { onChange, ...fieldProps } }) => (
                   <FormItem>
                     <FormLabel>CSV File</FormLabel>
                     <FormControl>

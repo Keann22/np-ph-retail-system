@@ -9,7 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore, useStorage } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -52,7 +52,23 @@ export function AddProductDialog() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof productSchema>) {
+  async function onSubmit(values: z.infer<typeof productSchema>) {
+    if (!firestore) return;
+    
+    // Check for duplicate SKU before doing anything else
+    const productsCollection = collection(firestore, 'products');
+    const q = query(productsCollection, where("sku", "==", values.sku));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      toast({
+        variant: "destructive",
+        title: "Duplicate SKU",
+        description: `A product with SKU "${values.sku}" already exists. Please use a unique SKU.`,
+      });
+      return; // Stop the submission
+    }
+
     setOpen(false);
     
     toast({
@@ -61,8 +77,6 @@ export function AddProductDialog() {
     });
 
     const { images: imageFiles, ...productCoreData } = values;
-
-    const productsCollection = collection(firestore, 'products');
 
     // Create the product document immediately with an empty images array.
     // The product will appear in the list right away.
