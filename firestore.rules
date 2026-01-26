@@ -76,20 +76,21 @@ service cloud.firestore {
     }
 
     /**
-     * Gets the role ID from the authenticated user's profile data.
-     * Returns null if the user profile doesn't exist or has no roleId.
-     */
-    function userRole() {
-      return getUserData().data.roleId;
-    }
-
-    /**
      * Checks if the authenticated user's role is in the provided map of roles.
-     * This is the core function for RBAC. The 'in' operator checks for key existence.
+     * This is the core function for RBAC. It safely checks for the user document
+     * and the roleId property before checking for role inclusion.
      * @param allowedRoles A map where keys are the role names.
      */
     function hasAnyRole(allowedRoles) {
-      return isSignedIn() && getUserData().exists && (userRole() in allowedRoles);
+      if (!isSignedIn()) {
+        return false;
+      }
+      let userDoc = getUserData();
+      if (!userDoc.exists) {
+        return false;
+      }
+      let userRoleId = userDoc.data.roleId;
+      return userRoleId in allowedRoles;
     }
     
     /**
