@@ -84,9 +84,9 @@ service cloud.firestore {
     }
 
     /**
-     * Checks if the authenticated user's role is in the provided list.
-     * This is the core function for RBAC.
-     * @param allowedRoles A list of role name strings.
+     * Checks if the authenticated user's role is in the provided map of roles.
+     * This is the core function for RBAC. The 'in' operator checks for key existence.
+     * @param allowedRoles A map where keys are the role names.
      */
     function hasAnyRole(allowedRoles) {
       return isSignedIn() && getUserData().exists && (userRole() in allowedRoles);
@@ -96,21 +96,21 @@ service cloud.firestore {
      * Checks if a user has a role with administrative privileges.
      */
     function isAdminOrOwner() {
-      return isOwnerAccount() || hasAnyRole(['admin', 'owner']);
+      return isOwnerAccount() || hasAnyRole({'admin': true, 'owner': true});
     }
     
     /**
      * Checks if a user has a role related to sales or administration.
      */
     function isSalesAdminOrOwner() {
-      return isOwnerAccount() || hasAnyRole(['sales', 'admin', 'owner']);
+      return isOwnerAccount() || hasAnyRole({'sales': true, 'admin': true, 'owner': true});
     }
 
     /**
      * Checks if a user has a role related to warehouse management or administration.
      */
     function isWarehouseAdminOrOwner() {
-      return isOwnerAccount() || hasAnyRole(['warehouse_manager', 'admin', 'owner']);
+      return isOwnerAccount() || hasAnyRole({'warehouse_manager': true, 'admin': true, 'owner': true});
     }
 
     /**
