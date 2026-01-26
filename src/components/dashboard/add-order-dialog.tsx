@@ -8,11 +8,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore } from "@/firebase";
-import { collection, doc, getDocs, increment } from "firebase/firestore";
+import { collection, doc, getDocs, increment, query, where, orderBy, limit } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Check, ChevronsUpDown, Trash2 } from "lucide-react";
+import { CalendarIcon, Check, ChevronsUpDown, Loader2, Trash2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -50,8 +50,17 @@ export function AddOrderDialog() {
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  // State for customer search
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
+
+  // State for product search
+  const [productSearch, setProductSearch] = useState('');
+  const [productResults, setProductResults] = useState<Product[]>([]);
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
@@ -65,32 +74,75 @@ export function AddOrderDialog() {
     },
   });
 
-  // Fetch data only when the dialog opens
+  // Debounced search for customers
   useEffect(() => {
-    if (open && firestore) {
-      const fetchInitialData = async () => {
-        try {
-          const customersQuery = collection(firestore, 'customers');
-          const customerSnapshot = await getDocs(customersQuery);
-          const customerList = customerSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
-          setCustomers(customerList);
+    const handler = setTimeout(async () => {
+      if (customerSearch.length < 1) {
+        setCustomerResults([]);
+        return;
+      }
+      if (!firestore) return;
+      
+      setIsSearchingCustomers(true);
+      const searchTermCapitalized = customerSearch.charAt(0).toUpperCase() + customerSearch.slice(1);
+      
+      const nameQuery = query(
+        collection(firestore, 'customers'),
+        orderBy('firstName'),
+        where('firstName', '>=', searchTermCapitalized),
+        where('firstName', '<=', searchTermCapitalized + '\uf8ff'),
+        limit(10)
+      );
 
-          const productsQuery = collection(firestore, 'products');
-          const productSnapshot = await getDocs(productsQuery);
-          const productList = productSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-          setProducts(productList);
-        } catch (error) {
-          console.error("Error fetching data for order dialog:", error);
-          toast({
-            variant: "destructive",
-            title: "Failed to load data",
-            description: "Could not fetch customers and products. Please try again.",
-          });
+      try {
+        const querySnapshot = await getDocs(nameQuery);
+        const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+        setCustomerResults(results);
+      } catch (error) {
+        console.error("Error searching customers:", error);
+        toast({ variant: "destructive", title: "Customer search failed" });
+      } finally {
+        setIsSearchingCustomers(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [customerSearch, firestore, toast]);
+
+  // Debounced search for products
+  useEffect(() => {
+    const handler = setTimeout(async () => {
+        if (productSearch.length < 1) {
+            setProductResults([]);
+            return;
         }
-      };
-      fetchInitialData();
-    }
-  }, [open, firestore, toast]);
+        if (!firestore) return;
+
+        setIsSearchingProducts(true);
+        const searchTermCapitalized = productSearch.charAt(0).toUpperCase() + productSearch.slice(1);
+
+        const nameQuery = query(
+            collection(firestore, 'products'),
+            orderBy('name'),
+            where('name', '>=', searchTermCapitalized),
+            where('name', '<=', searchTermCapitalized + '\uf8ff'),
+            limit(10)
+        );
+
+        try {
+            const querySnapshot = await getDocs(nameQuery);
+            const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+            setProductResults(results);
+        } catch (error) {
+            console.error("Error searching products:", error);
+            toast({ variant: "destructive", title: "Product search failed" });
+        } finally {
+            setIsSearchingProducts(false);
+        }
+    }, 300);
+
+    return () => clearTimeout(handler);
+}, [productSearch, firestore, toast]);
 
 
   const { fields, append, remove } = useFieldArray({
@@ -147,6 +199,7 @@ export function AddOrderDialog() {
             description: "The new order has been successfully saved.",
         });
         form.reset();
+        setSelectedCustomer(null);
     });
   }
 
@@ -182,24 +235,30 @@ export function AddOrderDialog() {
                                     !field.value && "text-muted-foreground"
                                 )}
                                 >
-                                {field.value
-                                    ? customers.find(c => c.id === field.value)?.firstName + ' ' + customers.find(c => c.id === field.value)?.lastName
+                                {field.value && selectedCustomer
+                                    ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}`
                                     : "Select customer"}
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                 <Command>
-                                    <CommandInput placeholder="Search customers..." />
+                                    <CommandInput 
+                                      placeholder="Search customers..." 
+                                      value={customerSearch} 
+                                      onValueChange={setCustomerSearch}
+                                    />
                                     <CommandList>
-                                        <CommandEmpty>No customers found.</CommandEmpty>
+                                        {isSearchingCustomers && <div className="p-2 text-sm text-center">Searching...</div>}
+                                        {!isSearchingCustomers && customerResults.length === 0 && customerSearch.length > 0 && <CommandEmpty>No customers found.</CommandEmpty>}
                                         <CommandGroup>
-                                            {customers.map((c) => (
+                                            {customerResults.map((c) => (
                                             <CommandItem
                                                 value={`${c.firstName} ${c.lastName}`}
                                                 key={c.id}
                                                 onSelect={() => {
                                                     form.setValue("customerId", c.id)
+                                                    setSelectedCustomer(c);
                                                     setCustomerPopoverOpen(false);
                                                 }}
                                             >
@@ -306,16 +365,21 @@ export function AddOrderDialog() {
                       </PopoverTrigger>
                       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                         <Command>
-                            <CommandInput placeholder="Search products..." />
+                            <CommandInput 
+                                placeholder="Search products..." 
+                                value={productSearch}
+                                onValueChange={setProductSearch}
+                            />
                             <CommandList>
-                                <CommandEmpty>No products found.</CommandEmpty>
+                                {isSearchingProducts && <div className="p-2 text-sm text-center">Searching...</div>}
+                                {!isSearchingProducts && productResults.length === 0 && productSearch.length > 0 && <CommandEmpty>No products found.</CommandEmpty>}
                                 <CommandGroup>
-                                    {products.map((p) => (
+                                    {productResults.map((p) => (
                                     <CommandItem
                                         value={p.name}
                                         key={p.id}
                                         onSelect={() => {
-                                            const productToAdd = products.find(prod => prod.id === p.id);
+                                            const productToAdd = productResults.find(prod => prod.id === p.id);
                                             if (productToAdd) {
                                                 append({
                                                     productId: productToAdd.id,
@@ -327,6 +391,7 @@ export function AddOrderDialog() {
                                             }
                                             setProductPopoverOpen(false);
                                         }}
+                                        onPointerDown={(e) => e.preventDefault()}
                                     >
                                         {p.name}
                                     </CommandItem>
