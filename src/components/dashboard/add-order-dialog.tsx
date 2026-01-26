@@ -47,6 +47,7 @@ type Product = { id: string; name: string; stock: number; costPrice: number; sel
 
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
+  const [productPopoverOpen, setProductPopoverOpen] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -354,11 +355,12 @@ export function AddOrderDialog() {
                         <FormMessage>{form.formState.errors.orderItems?.message}</FormMessage>
                     </div>
 
-                    <Popover>
+                    <Popover open={productPopoverOpen} onOpenChange={setProductPopoverOpen}>
                         <PopoverTrigger asChild>
                         <Button
                             variant="outline"
                             role="combobox"
+                            aria-expanded={productPopoverOpen}
                             className="w-full justify-start"
                             >
                             Add product...
@@ -382,6 +384,7 @@ export function AddOrderDialog() {
                                                     costPriceAtSale: p.costPrice,
                                                     sellingPriceAtSale: p.sellingPrice,
                                                 });
+                                                setProductPopoverOpen(false);
                                             }}
                                         >
                                             {p.name}
