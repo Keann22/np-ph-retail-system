@@ -101,10 +101,13 @@
           "description": "Link to the product on the supplier's website.",
           "format": "uri"
         },
-        "imageUrl": {
-          "type": "string",
-          "description": "URL of the product image.",
-          "format": "uri"
+        "images": {
+          "type": "array",
+          "description": "URLs of the product images.",
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
         },
         "costPrice": {
           "type": "number",
@@ -113,6 +116,10 @@
         "sellingPrice": {
           "type": "number",
           "description": "The selling price of the product."
+        },
+        "stock": {
+          "type": "number",
+          "description": "The current available stock."
         }
       },
       "required": [
@@ -122,9 +129,10 @@
         "description",
         "categoryId",
         "supplierLink",
-        "imageUrl",
+        "images",
         "costPrice",
-        "sellingPrice"
+        "sellingPrice",
+        "stock"
       ]
     },
     "Category": {
