@@ -31,6 +31,7 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { AddProductDialog } from '@/components/dashboard/add-product-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BulkUploadProductsDialog } from '@/components/dashboard/bulk-upload-products-dialog';
 
 // Matches the Firestore document structure for a product
 type Product = {
@@ -81,7 +82,10 @@ export default function ProductsPage() {
             Manage your products and view their inventory status.
           </CardDescription>
         </div>
-        <AddProductDialog />
+        <div className="flex gap-2">
+          <BulkUploadProductsDialog />
+          <AddProductDialog />
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
