@@ -4,7 +4,6 @@ import Link from 'next/link';
 import {
   Bell,
   Home,
-  LineChart,
   LogOut,
   Menu,
   Package,
@@ -35,7 +34,6 @@ const navLinks = [
   { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, badge: 6 },
   { href: '/dashboard/products', label: 'Products', icon: Package, badge: null },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, badge: null },
-  { href: '/dashboard/reports', label: 'Reports', icon: LineChart, badge: null },
 ];
 
 export default function DashboardLayout({
