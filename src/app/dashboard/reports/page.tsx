@@ -9,6 +9,7 @@ import {
   endOfYesterday,
   format,
   isWithinInterval,
+  endOfDay,
 } from 'date-fns';
 import { Calendar as CalendarIcon, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -90,7 +91,7 @@ export default function ReportsPage() {
   const formattedOrders = useMemo(() => {
     if (!allOrders || !date?.from) return [];
 
-    const intervalEnd = date.to ?? endOfToday(date.from);
+    const intervalEnd = date.to ?? endOfDay(date.from);
 
     return allOrders
       .filter(order => {
@@ -107,6 +108,11 @@ export default function ReportsPage() {
         formattedTotal: `₱${order.totalAmount.toFixed(2)}`,
       }));
   }, [allOrders, customerMap, date]);
+
+  const totalProcessedAmount = useMemo(() => {
+    if (isLoading) return 0;
+    return formattedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+  }, [formattedOrders, isLoading]);
   
   const setDatePreset = (preset: 'today' | 'yesterday') => {
     const from = preset === 'today' ? startOfToday() : startOfYesterday();
@@ -117,10 +123,22 @@ export default function ReportsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-headline">Processed Orders Report</CardTitle>
-        <CardDescription>
-          View all orders currently in the "Processing" state for a selected date range.
-        </CardDescription>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <CardTitle className="font-headline">Processed Orders Report</CardTitle>
+            <CardDescription>
+              View all orders currently in the "Processing" state for a selected date range.
+            </CardDescription>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-medium text-muted-foreground">Total for Period</p>
+            {isLoading ? (
+                <Skeleton className="h-8 w-32 mt-1" />
+            ) : (
+                <p className="text-2xl font-bold">₱{totalProcessedAmount.toFixed(2)}</p>
+            )}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap items-center gap-2 mb-4">
