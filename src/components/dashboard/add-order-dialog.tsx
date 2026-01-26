@@ -184,7 +184,7 @@ export function AddOrderDialog() {
                                 </Button>
                             </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" onPointerDownOutside={(e) => e.preventDefault()}>
                                 <Command>
                                     <CommandInput placeholder="Search customers..." />
                                     <CommandList>
@@ -244,7 +244,7 @@ export function AddOrderDialog() {
                                     </Button>
                                 </FormControl>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
+                                <PopoverContent className="w-auto p-0" align="start" onPointerDownOutside={(e) => e.preventDefault()}>
                                 <Calendar
                                     mode="single"
                                     selected={field.value}
@@ -372,7 +372,7 @@ export function AddOrderDialog() {
                             Add product...
                         </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" onPointerDownOutside={(e) => e.preventDefault()}>
                             <Command>
                                 <CommandInput placeholder="Search products..." />
                                 <CommandList>
