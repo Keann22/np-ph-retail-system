@@ -262,29 +262,30 @@ export function AddOrderDialog() {
                                         value={customerSearch} 
                                         onValueChange={setCustomerSearch}
                                     />
-                                    <CommandList>
-                                        {isSearchingCustomers && <CommandItem disabled>Searching...</CommandItem>}
-                                        {customerResults.length > 0 && (
-                                            <CommandGroup>
-                                            {customerResults.map((c) => (
-                                                <CommandItem
-                                                    key={c.id}
-                                                    value={`${c.firstName} ${c.lastName}`}
-                                                    onSelect={() => {
-                                                        form.setValue("customerId", c.id)
-                                                        setSelectedCustomer(c);
-                                                        setCustomerSearch('');
-                                                        setCustomerResults([]);
-                                                    }}
-                                                    onPointerDown={(e) => e.preventDefault()}
-                                                >
-                                                    {c.firstName} {c.lastName}
-                                                </CommandItem>
-                                            ))}
-                                            </CommandGroup>
-                                        )}
-                                        {!isSearchingCustomers && customerResults.length === 0 && customerSearch.length > 1 && <CommandEmpty>No customers found.</CommandEmpty>}
-                                    </CommandList>
+                                    {customerSearch.length > 0 && (
+                                        <CommandList>
+                                            {isSearchingCustomers && <CommandItem disabled>Searching...</CommandItem>}
+                                            {customerResults.length > 0 && (
+                                                <CommandGroup>
+                                                {customerResults.map((c) => (
+                                                    <CommandItem
+                                                        key={c.id}
+                                                        value={`${c.firstName} ${c.lastName}`}
+                                                        onSelect={() => {
+                                                            form.setValue("customerId", c.id)
+                                                            setSelectedCustomer(c);
+                                                            setCustomerSearch('');
+                                                            setCustomerResults([]);
+                                                        }}
+                                                    >
+                                                        {c.firstName} {c.lastName}
+                                                    </CommandItem>
+                                                ))}
+                                                </CommandGroup>
+                                            )}
+                                            {!isSearchingCustomers && customerResults.length === 0 && customerSearch.length > 1 && <CommandEmpty>No customers found.</CommandEmpty>}
+                                        </CommandList>
+                                    )}
                                 </Command>
                             )}
                             <FormMessage />
@@ -381,52 +382,53 @@ export function AddOrderDialog() {
                             value={productSearch}
                             onValueChange={setProductSearch}
                         />
-                        <CommandList>
-                            {isSearchingProducts && <CommandItem disabled>Searching...</CommandItem>}
-                            {productResults.length > 0 && (
-                                <CommandGroup>
-                                {productResults.map((p) => (
-                                <CommandItem
-                                    value={p.name}
-                                    key={p.id}
-                                    onPointerDown={(e) => e.preventDefault()}
-                                    onSelect={() => {
-                                        const isAlreadyAdded = fields.some(item => item.productId === p.id);
-                                        if (isAlreadyAdded) {
-                                            toast({
-                                                variant: "default",
-                                                title: "Product already in order",
-                                                description: `${p.name} is already in this order. You can adjust the quantity above.`,
-                                            });
+                        {productSearch.length > 0 && (
+                            <CommandList>
+                                {isSearchingProducts && <CommandItem disabled>Searching...</CommandItem>}
+                                {productResults.length > 0 && (
+                                    <CommandGroup>
+                                    {productResults.map((p) => (
+                                    <CommandItem
+                                        value={p.name}
+                                        key={p.id}
+                                        onSelect={() => {
+                                            const isAlreadyAdded = fields.some(item => item.productId === p.id);
+                                            if (isAlreadyAdded) {
+                                                toast({
+                                                    variant: "default",
+                                                    title: "Product already in order",
+                                                    description: `${p.name} is already in this order. You can adjust the quantity above.`,
+                                                });
+                                                setProductSearch('');
+                                                setProductResults([]);
+                                                return;
+                                            }
+                                            
+                                            const productToAdd = productResults.find(prod => prod.id === p.id);
+                                            if (productToAdd) {
+                                                append({
+                                                    productId: productToAdd.id,
+                                                    productName: productToAdd.name,
+                                                    quantity: 1,
+                                                    costPriceAtSale: productToAdd.costPrice,
+                                                    sellingPriceAtSale: productToAdd.sellingPrice,
+                                                });
+                                            }
                                             setProductSearch('');
                                             setProductResults([]);
-                                            return;
-                                        }
-                                        
-                                        const productToAdd = productResults.find(prod => prod.id === p.id);
-                                        if (productToAdd) {
-                                            append({
-                                                productId: productToAdd.id,
-                                                productName: productToAdd.name,
-                                                quantity: 1,
-                                                costPriceAtSale: productToAdd.costPrice,
-                                                sellingPriceAtSale: productToAdd.sellingPrice,
-                                            });
-                                        }
-                                        setProductSearch('');
-                                        setProductResults([]);
-                                    }}
-                                >
-                                  <div className="flex justify-between w-full">
-                                    <span>{p.name}</span>
-                                    <span className="text-xs text-muted-foreground">Stock: {p.stock}</span>
-                                  </div>
-                                </CommandItem>
-                                ))}
-                                </CommandGroup>
-                            )}
-                            {!isSearchingProducts && productResults.length === 0 && productSearch.length > 1 && <CommandEmpty>No products found.</CommandEmpty>}
-                        </CommandList>
+                                        }}
+                                    >
+                                    <div className="flex justify-between w-full">
+                                        <span>{p.name}</span>
+                                        <span className="text-xs text-muted-foreground">Stock: {p.stock}</span>
+                                    </div>
+                                    </CommandItem>
+                                    ))}
+                                    </CommandGroup>
+                                )}
+                                {!isSearchingProducts && productResults.length === 0 && productSearch.length > 1 && <CommandEmpty>No products found.</CommandEmpty>}
+                            </CommandList>
+                        )}
                     </Command>
                     
                     <div className="pt-4 space-y-2">
