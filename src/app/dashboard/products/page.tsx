@@ -125,7 +125,7 @@ export default function ProductsPage() {
                     height="64"
                     src={product.image}
                     width="64"
-                    data-ai-hint="kitchen tool"
+                    data-ai-hint="product image"
                   />
                 </TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
