@@ -46,8 +46,6 @@ type Product = { id: string; name: string; stock: number; costPrice: number; sel
 
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
-  const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
-  const [productPopoverOpen, setProductPopoverOpen] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -144,6 +142,13 @@ export function AddOrderDialog() {
       </DialogTrigger>
       <DialogContent 
         className="sm:max-w-4xl"
+        onPointerDownOutside={(e) => {
+          const target = e.target as HTMLElement;
+          // Prevent dialog from closing when interacting with any popover
+          if (target.closest('[data-radix-popover-content]')) {
+            e.preventDefault();
+          }
+        }}
       >
         <DialogHeader>
           <DialogTitle>Create New Order</DialogTitle>
@@ -162,7 +167,7 @@ export function AddOrderDialog() {
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
                         <FormLabel>Customer</FormLabel>
-                        <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
+                        <Popover>
                             <PopoverTrigger asChild>
                             <FormControl>
                                 <Button
@@ -186,9 +191,6 @@ export function AddOrderDialog() {
                             </PopoverTrigger>
                             <PopoverContent
                                 className="w-[--radix-popover-trigger-width] p-0"
-                                onPointerDownOutside={(e) => {
-                                    e.preventDefault();
-                                }}
                             >
                                 <Command>
                                     <CommandInput placeholder="Search customers..." />
@@ -201,7 +203,9 @@ export function AddOrderDialog() {
                                                 key={c.id}
                                                 onSelect={() => {
                                                   form.setValue("customerId", c.id)
-                                                  setCustomerPopoverOpen(false)
+                                                  // Manually close popover on select
+                                                  const trigger = document.querySelector(`[data-radix-popover-trigger][aria-controls="${(document.querySelector('[cmdk-root]')?.closest('[data-radix-popover-content]')?.id)}"]`) as HTMLElement;
+                                                  trigger?.click();
                                                 }}
                                             >
                                                 <Check
@@ -363,12 +367,11 @@ export function AddOrderDialog() {
                         <FormMessage>{form.formState.errors.orderItems?.message}</FormMessage>
                     </div>
 
-                    <Popover open={productPopoverOpen} onOpenChange={setProductPopoverOpen}>
+                    <Popover>
                         <PopoverTrigger asChild>
                         <Button
                             variant="outline"
                             role="combobox"
-                            aria-expanded={productPopoverOpen}
                             className="w-full justify-start"
                             >
                             Add product...
@@ -376,9 +379,6 @@ export function AddOrderDialog() {
                         </PopoverTrigger>
                         <PopoverContent
                             className="w-[--radix-popover-trigger-width] p-0"
-                            onPointerDownOutside={(e) => {
-                                e.preventDefault();
-                            }}
                         >
                             <Command>
                                 <CommandInput placeholder="Search products..." />
@@ -400,7 +400,8 @@ export function AddOrderDialog() {
                                                         sellingPriceAtSale: productToAdd.sellingPrice,
                                                     });
                                                 }
-                                                setProductPopoverOpen(false);
+                                                const trigger = document.querySelector(`[data-radix-popover-trigger][aria-controls="${(document.querySelector('[cmdk-root]')?.closest('[data-radix-popover-content]')?.id)}"]`) as HTMLElement;
+                                                trigger?.click();
                                             }}
                                         >
                                             {p.name}
