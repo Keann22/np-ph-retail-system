@@ -25,14 +25,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { deleteDocumentNonBlocking, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useState } from 'react';
 import { EditUserRolesDialog } from '@/components/dashboard/edit-user-roles-dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 // Matches the Firestore document structure for a user profile
 export type UserProfile = {
@@ -47,7 +58,8 @@ export default function UsersPage() {
   const firestore = useFirestore();
   const { userProfile: currentUserProfile } = useUserProfile();
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
-
+  const [deletingUser, setDeletingUser] = useState<UserProfile | null>(null);
+  const { toast } = useToast();
 
   const usersQuery = useMemoFirebase(
     () => (firestore ? collection(firestore, 'users') : null),
@@ -57,6 +69,32 @@ export default function UsersPage() {
   
   const canManageUsers = currentUserProfile && (currentUserProfile.roles.includes('Owner') || currentUserProfile.roles.includes('Admin'));
 
+  const confirmDelete = () => {
+    if (!deletingUser || !firestore) return;
+
+    // A user cannot delete themselves
+    if (currentUserProfile?.id === deletingUser.id) {
+        toast({
+            variant: 'destructive',
+            title: 'Action Forbidden',
+            description: 'You cannot delete your own account.',
+        });
+        setDeletingUser(null);
+        return;
+    }
+    
+    const userDocRef = doc(firestore, 'users', deletingUser.id);
+    deleteDocumentNonBlocking(userDocRef);
+    
+    toast({
+      title: "User Profile Deleted",
+      description: `${deletingUser.email} has been removed from the user list.`,
+    });
+
+    setDeletingUser(null);
+  };
+
+
   return (
     <>
       <Card>
@@ -64,7 +102,7 @@ export default function UsersPage() {
           <div>
             <CardTitle className="font-headline">User Management</CardTitle>
             <CardDescription>
-              View and manage user roles and permissions.
+              View and manage user roles and permissions. New users can be added via the sign-up page.
             </CardDescription>
           </div>
           {/* <Button>Add User</Button> */}
@@ -98,7 +136,7 @@ export default function UsersPage() {
                       <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
                       {canManageUsers && (
                         <TableCell>
-                            <Skeleton className="h-8 w-8" />
+                            <Skeleton className="h-8 w-8 ml-auto" />
                         </TableCell>
                       )}
                   </TableRow>
@@ -120,10 +158,10 @@ export default function UsersPage() {
                       </div>
                   </TableCell>
                   {canManageUsers && (
-                    <TableCell>
+                    <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button aria-haspopup="true" size="icon" variant="ghost">
+                          <Button aria-haspopup="true" size="icon" variant="ghost" disabled={currentUserProfile?.id === user.id}>
                             <MoreHorizontal className="h-4 w-4" />
                             <span className="sr-only">Toggle menu</span>
                           </Button>
@@ -131,7 +169,10 @@ export default function UsersPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => setEditingUser(user)}>Edit Roles</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            onClick={() => setDeletingUser(user)}
+                          >
                             Delete User
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -164,6 +205,25 @@ export default function UsersPage() {
         open={!!editingUser}
         onOpenChange={(isOpen) => !isOpen && setEditingUser(null)}
       />
+      <AlertDialog open={!!deletingUser} onOpenChange={(isOpen) => !isOpen && setDeletingUser(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+                This will delete the user profile for <strong>{deletingUser?.email}</strong>. This action cannot be undone and will remove them from this list. It will not delete their login account.
+            </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={confirmDelete}
+            >
+                Delete
+            </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
