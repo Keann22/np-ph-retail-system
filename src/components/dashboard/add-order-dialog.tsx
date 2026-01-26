@@ -143,7 +143,7 @@ export function AddOrderDialog() {
       <DialogTrigger asChild>
         <Button>New Order</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Create New Order</DialogTitle>
           <DialogDescription>
@@ -161,7 +161,7 @@ export function AddOrderDialog() {
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
                         <FormLabel>Customer</FormLabel>
-                        <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
+                        <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen} modal={true}>
                             <PopoverTrigger asChild>
                             <FormControl>
                                 <Button
@@ -224,7 +224,7 @@ export function AddOrderDialog() {
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
                             <FormLabel>Order Date</FormLabel>
-                            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen} modal={true}>
                                 <PopoverTrigger asChild>
                                 <FormControl>
                                     <Button
@@ -360,7 +360,7 @@ export function AddOrderDialog() {
                         <FormMessage>{form.formState.errors.orderItems?.message}</FormMessage>
                     </div>
 
-                    <Popover open={productPopoverOpen} onOpenChange={setProductPopoverOpen}>
+                    <Popover open={productPopoverOpen} onOpenChange={setProductPopoverOpen} modal={true}>
                         <PopoverTrigger asChild>
                         <Button
                             variant="outline"
@@ -381,8 +381,8 @@ export function AddOrderDialog() {
                                         <CommandItem
                                             value={p.name}
                                             key={p.id}
-                                            onSelect={(currentValue) => {
-                                                const productToAdd = products.find(prod => prod.name.toLowerCase() === currentValue.toLowerCase());
+                                            onSelect={() => {
+                                                const productToAdd = products.find(prod => prod.id === p.id);
                                                 if (productToAdd) {
                                                     append({
                                                         productId: productToAdd.id,
