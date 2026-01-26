@@ -25,8 +25,8 @@ const bulkUploadSchema = z.object({
     ),
 });
 
-// Matches the expected CSV header
-const EXPECTED_HEADERS = ['name', 'sku', 'description', 'categoryId', 'sellingPrice', 'costPrice', 'stock', 'supplierLink'];
+// Matches the expected CSV header, description is removed
+const EXPECTED_HEADERS = ['name', 'sku', 'categoryId', 'sellingPrice', 'costPrice', 'stock', 'supplierLink'];
 
 export function BulkUploadProductsDialog() {
   const [open, setOpen] = useState(false);
@@ -61,13 +61,14 @@ export function BulkUploadProductsDialog() {
     const requiredHeaders = canViewCostPrice 
       ? EXPECTED_HEADERS 
       : EXPECTED_HEADERS.filter(h => h !== 'costPrice');
+      
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
     if (missingHeaders.length > 0) {
         toast({
             variant: "destructive",
             title: "Invalid CSV Header",
-            description: `The following required columns are missing: ${missingHeaders.join(', ')}.`,
+            description: `The following required columns are missing: ${missingHeaders.join(', ')}. Please ensure your CSV file matches the required format.`,
         });
         setIsUploading(false);
         return;
@@ -121,7 +122,7 @@ export function BulkUploadProductsDialog() {
         const productData = {
             name: productObj.name || '',
             sku: sku,
-            description: productObj.description || '',
+            description: '', // Description is intentionally left blank for bulk uploads
             categoryId: productObj.categoryId || 'Uncategorized',
             supplierLink: productObj.supplierLink || '',
             images: [], // Images are not supported in this bulk upload
@@ -194,8 +195,8 @@ export function BulkUploadProductsDialog() {
   }
   
   const csvTemplate = canViewCostPrice 
-    ? `name,sku,description,categoryId,sellingPrice,costPrice,stock,supplierLink`
-    : `name,sku,description,categoryId,sellingPrice,stock,supplierLink`;
+    ? `name,sku,categoryId,sellingPrice,costPrice,stock,supplierLink`
+    : `name,sku,categoryId,sellingPrice,stock,supplierLink`;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -206,7 +207,7 @@ export function BulkUploadProductsDialog() {
         <DialogHeader>
           <DialogTitle>Bulk Upload Products</DialogTitle>
           <DialogDescription>
-            Select a .csv file to upload. The first row must be a header. Note: values should not contain commas.
+            Select a CSV file to upload. Please remove the 'description' column from your file before uploading. Descriptions with commas can cause issues and should be added manually after the upload.
           </DialogDescription>
           <div className="text-xs text-muted-foreground bg-muted p-2 rounded-md font-mono">
             Required columns: {csvTemplate}
@@ -217,17 +218,17 @@ export function BulkUploadProductsDialog() {
              <FormField
                 control={form.control}
                 name="csvFile"
-                render={({ field }) => (
+                render={({ field: { onChange, onBlur, name, ref } }) => (
                   <FormItem>
                     <FormLabel>CSV File</FormLabel>
                     <FormControl>
                       <Input
                         type="file"
                         accept=".csv"
-                        ref={field.ref}
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        onChange={(e) => field.onChange(e.target.files)}
+                        ref={ref}
+                        name={name}
+                        onBlur={onBlur}
+                        onChange={(e) => onChange(e.target.files)}
                       />
                     </FormControl>
                     <FormMessage />
