@@ -186,8 +186,8 @@ export function AddOrderDialog() {
                             </PopoverTrigger>
                             <PopoverContent
                                 className="w-[--radix-popover-trigger-width] p-0"
-                                onInteractOutside={(e) => {
-                                e.preventDefault();
+                                onPointerDownOutside={(e) => {
+                                    e.preventDefault();
                                 }}
                             >
                                 <Command>
@@ -376,7 +376,7 @@ export function AddOrderDialog() {
                         </PopoverTrigger>
                         <PopoverContent
                             className="w-[--radix-popover-trigger-width] p-0"
-                            onInteractOutside={(e) => {
+                            onPointerDownOutside={(e) => {
                                 e.preventDefault();
                             }}
                         >
