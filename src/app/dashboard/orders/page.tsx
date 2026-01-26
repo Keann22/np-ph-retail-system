@@ -31,6 +31,7 @@ import { collection, query, orderBy } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddOrderDialog } from '@/components/dashboard/add-order-dialog';
 import { format } from 'date-fns';
+import { useMemo } from 'react';
 
 // Matches the Firestore document structure for an order
 type Order = {
