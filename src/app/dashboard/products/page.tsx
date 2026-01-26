@@ -81,6 +81,8 @@ export default function ProductsPage() {
   const [deletingProduct, setDeletingProduct] = useState<FormattedProduct | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
   const { toast } = useToast();
 
   const productsQuery = useMemoFirebase(
@@ -95,6 +97,15 @@ export default function ProductsPage() {
     price: `₱${p.sellingPrice.toFixed(2)}`,
     image: p.images?.[0] || 'https://placehold.co/64x64',
   }));
+
+  const totalPages = formattedProducts ? Math.ceil(formattedProducts.length / itemsPerPage) : 0;
+  const paginatedProducts = formattedProducts?.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+  const startIndex = formattedProducts ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endIndex = formattedProducts ? Math.min(currentPage * itemsPerPage, formattedProducts.length) : 0;
+
 
   const handleDeleteConfirm = () => {
     if (!deletingProduct || !firestore) return;
@@ -187,7 +198,7 @@ export default function ProductsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && Array.from({ length: 5 }).map((_, i) => (
+              {isLoading && Array.from({ length: 10 }).map((_, i) => (
                   <TableRow key={i}>
                       <TableCell>
                         <Skeleton className="h-4 w-4" />
@@ -204,7 +215,7 @@ export default function ProductsPage() {
                       </TableCell>
                   </TableRow>
               ))}
-              {formattedProducts && formattedProducts.map((product) => (
+              {paginatedProducts && paginatedProducts.map((product) => (
                 <TableRow key={product.id} data-state={selectedProductIds.includes(product.id) ? 'selected' : undefined}>
                   <TableCell>
                     <Checkbox
@@ -275,10 +286,31 @@ export default function ProductsPage() {
           )}
         </CardContent>
         {formattedProducts && formattedProducts.length > 0 && (
-          <CardFooter>
-              <div className="text-xs text-muted-foreground">
-              Showing <strong>1-{formattedProducts.length}</strong> of <strong>{formattedProducts.length}</strong> products
-              </div>
+          <CardFooter className="flex items-center justify-between">
+            <div className="text-xs text-muted-foreground">
+              Showing <strong>{startIndex}-{endIndex}</strong> of <strong>{formattedProducts.length}</strong> products
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => p - 1)}
+                disabled={currentPage <= 1}
+              >
+                Previous
+              </Button>
+              <span className='text-sm text-muted-foreground'>
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => p + 1)}
+                disabled={currentPage >= totalPages}
+              >
+                Next
+              </Button>
+            </div>
           </CardFooter>
         )}
       </Card>
