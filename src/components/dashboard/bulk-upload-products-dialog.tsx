@@ -25,9 +25,6 @@ const bulkUploadSchema = z.object({
     ),
 });
 
-// Matches the expected CSV header
-const EXPECTED_HEADERS = ['name', 'sku', 'description', 'categoryId', 'sellingPrice', 'costPrice', 'stock', 'supplierLink'];
-
 /**
  * Parses a CSV string into headers and rows, handling quoted fields with commas and newlines.
  * @param csvData The raw string data from a CSV file.
@@ -126,24 +123,19 @@ export function BulkUploadProductsDialog() {
       return;
     }
     
-    const requiredHeaders = canViewCostPrice 
-      ? EXPECTED_HEADERS.filter(h => h !== 'description') 
-      : EXPECTED_HEADERS.filter(h => h !== 'costPrice' && h !== 'description');
-      
-    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-
-    if (missingHeaders.length > 0) {
+    // The only absolutely required header is 'name'.
+    if (!headers.includes('name')) {
         toast({
             variant: "destructive",
             title: "Invalid CSV Header",
-            description: `The following required columns are missing: ${missingHeaders.join(', ')}.`,
+            description: `The required column 'name' is missing from your CSV file.`,
         });
         setIsUploading(false);
         return;
     }
 
     const headerMap = headers.reduce((acc, header, index) => {
-        acc[header] = index;
+        acc[header.trim()] = index;
         return acc;
     }, {} as {[key: string]: number});
 
@@ -158,12 +150,21 @@ export function BulkUploadProductsDialog() {
     let skippedCount = 0;
 
     for (const row of dataRows) {
-        const sku = row[headerMap['sku']]?.trim();
+        const name = row[headerMap['name']]?.trim();
 
-        if (!sku) {
-            console.warn(`Skipping row because SKU is missing: ${row.join(',')}`);
+        if (!name) {
+            console.warn(`Skipping row because name is missing: ${row.join(',')}`);
             skippedCount++;
             continue;
+        }
+
+        let sku = row[headerMap['sku']]?.trim();
+        
+        // Generate SKU if it's not provided
+        if (!sku) {
+            // Create a simple slug from the name and add timestamp for uniqueness
+            const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            sku = `${slug.substring(0, 30)}-${Date.now()}`;
         }
 
         if (existingSkus.has(sku)) {
@@ -172,18 +173,22 @@ export function BulkUploadProductsDialog() {
             continue;
         }
         
-        existingSkus.add(sku);
+        existingSkus.add(sku); // Add to set to prevent duplicates within the same file
 
         const stock = parseInt(row[headerMap['stock']]?.trim(), 10) || 0;
-        const sellingPrice = parseFloat(row[headerMap['sellingPrice']]?.trim()) || 0;
+        // User said 'price', which we map to sellingPrice
+        const sellingPrice = parseFloat(row[headerMap['sellingPrice']]?.trim() || row[headerMap['price']]?.trim()) || 0;
         const costPrice = canViewCostPrice ? (parseFloat(row[headerMap['costPrice']]?.trim()) || 0) : 0;
+        const description = row[headerMap['description']]?.trim() || '';
+        const categoryId = row[headerMap['categoryId']]?.trim() || 'Uncategorized';
+        const supplierLink = row[headerMap['supplierLink']]?.trim() || '';
 
         const productData = {
-            name: row[headerMap['name']]?.trim() || '',
-            sku: sku,
-            description: row[headerMap['description']]?.trim() || '',
-            categoryId: row[headerMap['categoryId']]?.trim() || 'Uncategorized',
-            supplierLink: row[headerMap['supplierLink']]?.trim() || '',
+            name,
+            sku,
+            description,
+            categoryId,
+            supplierLink,
             images: [],
             sellingPrice,
             costPrice,
@@ -216,7 +221,7 @@ export function BulkUploadProductsDialog() {
 
     let description = `${successfulUploads} products were uploaded.`;
     if (skippedCount > 0) {
-        description += ` ${skippedCount} products were skipped due to missing or duplicate SKUs. Check console for details.`;
+        description += ` ${skippedCount} products were skipped due to missing names or duplicate SKUs. Check console for details.`;
     }
 
     toast({
@@ -252,10 +257,6 @@ export function BulkUploadProductsDialog() {
     reader.readAsText(file);
   }
   
-  const csvTemplate = canViewCostPrice 
-    ? `name,sku,description,categoryId,sellingPrice,costPrice,stock,supplierLink`
-    : `name,sku,description,categoryId,sellingPrice,stock,supplierLink`;
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -265,10 +266,11 @@ export function BulkUploadProductsDialog() {
         <DialogHeader>
           <DialogTitle>Bulk Upload Products</DialogTitle>
           <DialogDescription>
-            Select a CSV file to upload. Fields with commas or line breaks should be wrapped in double quotes.
+            Upload a CSV file with your products. The only required column is <strong>name</strong>. Other supported columns are: sku, description, categoryId, sellingPrice (or price), costPrice, stock, and supplierLink.
           </DialogDescription>
-          <div className="text-xs text-muted-foreground bg-muted p-2 rounded-md font-mono">
-            Required columns: {EXPECTED_HEADERS.filter(h => h !== 'costPrice' && h !== 'description' && h !== 'supplierLink').join(', ')}
+          <div className="text-xs text-muted-foreground bg-muted p-2 rounded-md space-y-1">
+            <p>If 'sku' is not provided, a unique one will be generated from the product name.</p>
+            <p>Fields with commas or line breaks should be wrapped in double quotes (e.g., "This is a, description").</p>
           </div>
         </DialogHeader>
         <Form {...form}>
@@ -276,17 +278,17 @@ export function BulkUploadProductsDialog() {
              <FormField
                 control={form.control}
                 name="csvFile"
-                render={({ field }) => (
+                render={({ field: { onChange, onBlur, name, ref } }) => (
                   <FormItem>
                     <FormLabel>CSV File</FormLabel>
                     <FormControl>
                       <Input
                         type="file"
                         accept=".csv"
-                        onChange={(e) => field.onChange(e.target.files)}
-                        onBlur={field.onBlur}
-                        name={field.name}
-                        ref={field.ref}
+                        onChange={(e) => onChange(e.target.files)}
+                        onBlur={onBlur}
+                        name={name}
+                        ref={ref}
                       />
                     </FormControl>
                     <FormMessage />
