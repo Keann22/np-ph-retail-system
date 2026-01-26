@@ -14,10 +14,6 @@
           "type": "string",
           "description": "The username of the user, used for login."
         },
-        "roleId": {
-          "type": "string",
-          "description": "Reference to the Role. (Relationship: Role 1:N User)"
-        },
         "firstName": {
           "type": "string",
           "description": "The first name of the user."
@@ -39,35 +35,9 @@
       "required": [
         "id",
         "username",
-        "roleId",
         "firstName",
         "lastName",
         "email"
-      ]
-    },
-    "Role": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Role",
-      "type": "object",
-      "description": "Represents a role within the RetailFlow system, defining access permissions.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the role entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the role (e.g., Owner, Admin, Warehouse Manager, Sales)."
-        },
-        "description": {
-          "type": "string",
-          "description": "A description of the role and its associated permissions."
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "description"
       ]
     },
     "Product": {
@@ -538,22 +508,6 @@
   },
   "firestore": {
     "structure": [
-      {
-        "path": "/roles/{roleId}",
-        "definition": {
-          "entityName": "Role",
-          "schema": {
-            "$ref": "#/backend/entities/Role"
-          },
-          "description": "Stores role information. Used for global role-based access control (DBAC). Existence of a document determines role membership.",
-          "params": [
-            {
-              "name": "roleId",
-              "description": "The unique identifier of the role (e.g., 'owner', 'admin')."
-            }
-          ]
-        }
-      },
       {
         "path": "/users/{userId}",
         "definition": {

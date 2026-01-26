@@ -15,8 +15,8 @@ export default function LoginPage() {
   const auth = useAuth();
   const { user, isUserLoading, userError } = useUser();
   const router = useRouter();
-  const [email, setEmail] = useState('keneth@owner.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export default function LoginPage() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="owner@retailflow.app" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input id="email" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
