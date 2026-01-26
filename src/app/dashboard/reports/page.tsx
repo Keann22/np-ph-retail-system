@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -16,16 +16,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { Calendar as CalendarIcon } from 'lucide-react';
-import { DateRange } from 'react-day-picker';
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
 import type { Order } from '../orders/page';
 
 type Customer = {
@@ -37,33 +31,17 @@ type Customer = {
 
 
 export default function ReportsPage() {
-  const [activeFilter, setActiveFilter] = useState<'today' | 'yesterday' | 'custom'>('today');
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfDay(new Date()),
-    to: endOfDay(new Date()),
-  });
-
   const firestore = useFirestore();
 
-  useEffect(() => {
-    if (activeFilter === 'today') {
-      setDateRange({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
-    } else if (activeFilter === 'yesterday') {
-      const yesterday = subDays(new Date(), 1);
-      setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
-    }
-  }, [activeFilter]);
-
   const ordersQuery = useMemoFirebase(() => {
-    if (!firestore || !dateRange?.from || !dateRange?.to) return null;
+    if (!firestore) return null;
 
     return query(
       collection(firestore, 'orders'),
       where('orderStatus', '==', 'Processing'),
-      where('orderDate', '>=', dateRange.from.toISOString()),
-      where('orderDate', '<=', dateRange.to.toISOString())
+      orderBy('orderDate', 'desc')
     );
-  }, [firestore, dateRange]);
+  }, [firestore]);
   
   const customersQuery = useMemoFirebase(
     () => (firestore ? collection(firestore, 'customers') : null),
@@ -96,74 +74,10 @@ export default function ReportsPage() {
       <CardHeader>
         <CardTitle className="font-headline">Processed Orders Report</CardTitle>
         <CardDescription>
-          View processed orders for a specific date range.
+          A list of all orders currently in the "Processing" state.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-            <Button
-                variant={activeFilter === 'today' ? 'default' : 'outline'}
-                onClick={() => setActiveFilter('today')}
-            >
-                Today
-            </Button>
-            <Button
-                variant={activeFilter === 'yesterday' ? 'default' : 'outline'}
-                onClick={() => setActiveFilter('yesterday')}
-            >
-                Yesterday
-            </Button>
-            <Popover>
-                <PopoverTrigger asChild>
-                <Button
-                    id="date"
-                    variant={activeFilter === 'custom' ? 'default' : 'outline'}
-                    className={cn(
-                    "w-[300px] justify-start text-left font-normal",
-                    !dateRange && "text-muted-foreground"
-                    )}
-                    onClick={() => setActiveFilter('custom')}
-                >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange?.from ? (
-                    dateRange.to ? (
-                        <>
-                        {format(dateRange.from, "LLL dd, y")} -{" "}
-                        {format(dateRange.to, "LLL dd, y")}
-                        </>
-                    ) : (
-                        format(dateRange.from, "LLL dd, y")
-                    )
-                    ) : (
-                    <span>Pick a date</span>
-                    )}
-                </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={(range) => {
-                        if (range?.from && range?.to) {
-                            setDateRange({
-                                from: startOfDay(range.from),
-                                to: endOfDay(range.to),
-                            });
-                        } else if (range?.from) {
-                            setDateRange({
-                                from: startOfDay(range.from),
-                                to: endOfDay(range.from),
-                            })
-                        }
-                    }}
-                    numberOfMonths={2}
-                />
-                </PopoverContent>
-            </Popover>
-        </div>
-
         <Table>
           <TableHeader>
             <TableRow>
@@ -203,7 +117,7 @@ export default function ReportsPage() {
             <div className="flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg p-12 mt-4">
                 <p className="text-lg font-semibold">No processed orders found</p>
                 <p className="text-muted-foreground mt-2">
-                    There are no orders with the status "Processing" for the selected date range.
+                    There are currently no orders with the status "Processing".
                 </p>
             </div>
         )}
