@@ -161,7 +161,7 @@ export function AddOrderDialog() {
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
                         <FormLabel>Customer</FormLabel>
-                        <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen} modal={true}>
+                        <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
                             <PopoverTrigger asChild>
                             <FormControl>
                                 <Button
@@ -183,7 +183,7 @@ export function AddOrderDialog() {
                                 </Button>
                             </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <PopoverContent onPointerDownOutside={(e) => e.preventDefault()} className="w-[--radix-popover-trigger-width] p-0">
                                 <Command>
                                     <CommandInput placeholder="Search customers..." />
                                     <CommandList>
@@ -224,7 +224,7 @@ export function AddOrderDialog() {
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
                             <FormLabel>Order Date</FormLabel>
-                            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen} modal={true}>
+                            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                                 <PopoverTrigger asChild>
                                 <FormControl>
                                     <Button
@@ -243,7 +243,7 @@ export function AddOrderDialog() {
                                     </Button>
                                 </FormControl>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
+                                <PopoverContent className="w-auto p-0" align="start" onPointerDownOutside={(e) => e.preventDefault()}>
                                 <Calendar
                                     mode="single"
                                     selected={field.value}
@@ -360,7 +360,7 @@ export function AddOrderDialog() {
                         <FormMessage>{form.formState.errors.orderItems?.message}</FormMessage>
                     </div>
 
-                    <Popover open={productPopoverOpen} onOpenChange={setProductPopoverOpen} modal={true}>
+                    <Popover open={productPopoverOpen} onOpenChange={setProductPopoverOpen}>
                         <PopoverTrigger asChild>
                         <Button
                             variant="outline"
@@ -371,7 +371,7 @@ export function AddOrderDialog() {
                             Add product...
                         </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <PopoverContent onPointerDownOutside={(e) => e.preventDefault()} className="w-[--radix-popover-trigger-width] p-0">
                             <Command>
                                 <CommandInput placeholder="Search products..." />
                                 <CommandList>
