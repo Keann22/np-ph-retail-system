@@ -22,7 +22,7 @@ export default function DashboardPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$45,231.89</div>
+            <div className="text-2xl font-bold">₱45,231.89</div>
             <p className="text-xs text-muted-foreground">
               +20.1% from last month
             </p>
@@ -36,7 +36,7 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$12,874.45</div>
+            <div className="text-2xl font-bold">₱12,874.45</div>
             <p className="text-xs text-muted-foreground">
               +18.3% from last month
             </p>
@@ -62,7 +62,7 @@ export default function DashboardPage() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$5,730.00</div>
+            <div className="text-2xl font-bold">₱5,730.00</div>
             <p className="text-xs text-muted-foreground">
               21 active installments
             </p>

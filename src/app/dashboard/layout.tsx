@@ -117,22 +117,6 @@ export default function DashboardLayout({
               </Link>
             </nav>
           </div>
-          <div className="mt-auto p-4">
-            <Card className="bg-sidebar-accent border-sidebar-border">
-              <CardHeader className="p-2 pt-0 md:p-4">
-                <CardTitle className="text-sidebar-accent-foreground">Upgrade to Pro</CardTitle>
-                <CardDescription className="text-sidebar-foreground/80">
-                  Unlock all features and get unlimited access to our support
-                  team.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
-                <Button size="sm" className="w-full">
-                  Upgrade
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </div>
       <div className="flex flex-col">
@@ -196,21 +180,6 @@ export default function DashboardLayout({
                   Reports
                 </Link>
               </nav>
-              <div className="mt-auto">
-                <Card className="bg-sidebar-accent border-sidebar-border">
-                  <CardHeader>
-                    <CardTitle className="text-sidebar-accent-foreground">Upgrade to Pro</CardTitle>
-                    <CardDescription className="text-sidebar-foreground/80">
-                      Unlock all features and get unlimited access.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button size="sm" className="w-full">
-                      Upgrade
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1">
