@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -13,9 +12,17 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { Loader2 } from "lucide-react";
+import { Input } from "../ui/input";
 
 const bulkUploadSchema = z.object({
-  csvData: z.string().min(1, "CSV data is required."),
+  csvFile: z
+    .custom<FileList>()
+    .refine((files) => files?.length === 1, "A single CSV file is required.")
+    .transform((files) => files[0] as File)
+    .refine(
+      (file) => file.type === "text/csv",
+      "The selected file must be a .csv file."
+    ),
 });
 
 // Matches the expected CSV header
@@ -32,19 +39,10 @@ export function BulkUploadProductsDialog() {
 
   const form = useForm<z.infer<typeof bulkUploadSchema>>({
     resolver: zodResolver(bulkUploadSchema),
-    defaultValues: {
-      csvData: "",
-    },
   });
 
-  async function onSubmit(values: z.infer<typeof bulkUploadSchema>) {
-    setIsUploading(true);
-    toast({
-      title: "Processing Bulk Upload...",
-      description: "Please wait while we process your product data.",
-    });
-
-    const lines = values.csvData.trim().split('\n');
+  const processCsvData = async (csvData: string) => {
+    const lines = csvData.trim().split('\n');
     if (lines.length < 2) {
       toast({
         variant: "destructive",
@@ -136,6 +134,33 @@ export function BulkUploadProductsDialog() {
       description: `${successfulUploads} products uploaded. ${failedUploads.length > 0 ? `${failedUploads.length} failed (see console for details).` : ''}`,
     });
   }
+
+  async function onSubmit(values: z.infer<typeof bulkUploadSchema>) {
+    setIsUploading(true);
+    toast({
+      title: "Processing Bulk Upload...",
+      description: "Please wait while we process your product data.",
+    });
+
+    const file = values.csvFile;
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      processCsvData(content);
+    };
+
+    reader.onerror = () => {
+      toast({
+        variant: "destructive",
+        title: "File Read Error",
+        description: "Could not read the contents of the uploaded file.",
+      });
+      setIsUploading(false);
+    };
+
+    reader.readAsText(file);
+  }
   
   const csvTemplate = canViewCostPrice 
     ? `name,sku,description,categoryId,sellingPrice,costPrice,stock,supplierLink`
@@ -146,11 +171,11 @@ export function BulkUploadProductsDialog() {
       <DialogTrigger asChild>
         <Button variant="outline">Bulk Upload</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Bulk Upload Products</DialogTitle>
           <DialogDescription>
-            Paste your product data in CSV (Comma Separated Values) format below. The first row must be a header. Note: values should not contain commas.
+            Select a .csv file to upload. The first row must be a header. Note: values should not contain commas.
           </DialogDescription>
           <div className="text-xs text-muted-foreground bg-muted p-2 rounded-md font-mono">
             Required columns: {csvTemplate}
@@ -158,23 +183,26 @@ export function BulkUploadProductsDialog() {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="csvData"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>CSV Product Data</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder={`${csvTemplate}\nProduct One,P1-SKU,Desc 1,Cat 1,19.99,10,50,http://supplier.com/p1`}
-                      className="resize-y min-h-[200px] font-mono"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+             <FormField
+                control={form.control}
+                name="csvFile"
+                render={({ field: { onChange, ...fieldProps } }) => (
+                  <FormItem>
+                    <FormLabel>CSV File</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="file"
+                        accept=".csv"
+                        {...fieldProps}
+                        onChange={(event) => {
+                          onChange(event.target.files);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isUploading}>Cancel</Button>
               <Button type="submit" disabled={isUploading}>
