@@ -143,7 +143,16 @@ export function AddOrderDialog() {
       <DialogTrigger asChild>
         <Button>New Order</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent 
+        className="sm:max-w-4xl"
+        onPointerDownOutside={(e) => {
+          const target = e.target as HTMLElement;
+          // Prevent dialog from closing when clicking inside a popover
+          if (target.closest('[data-radix-popper-content-wrapper]')) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Create New Order</DialogTitle>
           <DialogDescription>
@@ -193,9 +202,7 @@ export function AddOrderDialog() {
                                             <CommandItem
                                                 value={`${c.firstName} ${c.lastName}`}
                                                 key={c.id}
-                                                onMouseDown={(e) => {
-                                                  e.preventDefault();
-                                                  e.stopPropagation();
+                                                onSelect={() => {
                                                   form.setValue("customerId", c.id)
                                                   setCustomerPopoverOpen(false)
                                                 }}
@@ -383,9 +390,7 @@ export function AddOrderDialog() {
                                         <CommandItem
                                             value={p.name}
                                             key={p.id}
-                                            onMouseDown={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
+                                            onSelect={() => {
                                                 const productToAdd = products.find(prod => prod.id === p.id);
                                                 if (productToAdd) {
                                                     append({
