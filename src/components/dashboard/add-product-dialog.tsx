@@ -53,7 +53,7 @@ export function AddProductDialog() {
     
     toast({
       title: "Adding Product...",
-      description: `Your product "${values.name}" is being added.`,
+      description: `Your product "${values.name}" is being added in the background.`,
     });
 
     const uploadAndSave = async () => {
@@ -72,7 +72,20 @@ export function AddProductDialog() {
         };
 
         const productsCollection = collection(firestore, 'products');
-        await addDocumentNonBlocking(productsCollection, productData);
+        const newProductRef = await addDocumentNonBlocking(productsCollection, productData);
+
+        if (newProductRef && productData.stock > 0) {
+            const inventoryMovementsCollection = collection(firestore, 'inventoryMovements');
+            const inventoryMovementData = {
+                productId: newProductRef.id,
+                quantityChange: productData.stock,
+                movementType: 'initial_stock',
+                timestamp: new Date().toISOString(),
+                reason: 'Initial stock for new product',
+            };
+            addDocumentNonBlocking(inventoryMovementsCollection, inventoryMovementData);
+        }
+
 
         toast({
           title: "Product Added",
@@ -84,7 +97,7 @@ export function AddProductDialog() {
         toast({
           variant: "destructive",
           title: "Action Failed",
-          description: "There was an error uploading images or saving the product. Please try again.",
+          description: `Could not save product "${values.name}". Please try again.`,
         });
       }
     };
