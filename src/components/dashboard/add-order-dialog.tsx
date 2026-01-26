@@ -47,7 +47,6 @@ type Product = { id: string; name: string; stock: number; costPrice: number; sel
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [productPopoverOpen, setProductPopoverOpen] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -185,7 +184,12 @@ export function AddOrderDialog() {
                                 </Button>
                             </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <PopoverContent
+                                className="w-[--radix-popover-trigger-width] p-0"
+                                onInteractOutside={(e) => {
+                                e.preventDefault();
+                                }}
+                            >
                                 <Command>
                                     <CommandInput placeholder="Search customers..." />
                                     <CommandList>
@@ -195,10 +199,6 @@ export function AddOrderDialog() {
                                             <CommandItem
                                                 value={`${c.firstName} ${c.lastName}`}
                                                 key={c.id}
-                                                onMouseDown={(e) => {
-                                                  e.preventDefault();
-                                                  e.stopPropagation();
-                                                }}
                                                 onSelect={() => {
                                                   form.setValue("customerId", c.id)
                                                   setCustomerPopoverOpen(false)
@@ -230,7 +230,7 @@ export function AddOrderDialog() {
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
                             <FormLabel>Order Date</FormLabel>
-                            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                            <Popover>
                                 <PopoverTrigger asChild>
                                 <FormControl>
                                     <Button
@@ -253,10 +253,7 @@ export function AddOrderDialog() {
                                 <Calendar
                                     mode="single"
                                     selected={field.value}
-                                    onSelect={(date) => {
-                                        field.onChange(date);
-                                        setDatePickerOpen(false);
-                                    }}
+                                    onSelect={field.onChange}
                                     initialFocus
                                 />
                                 </PopoverContent>
@@ -377,7 +374,12 @@ export function AddOrderDialog() {
                             Add product...
                         </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <PopoverContent
+                            className="w-[--radix-popover-trigger-width] p-0"
+                            onInteractOutside={(e) => {
+                                e.preventDefault();
+                            }}
+                        >
                             <Command>
                                 <CommandInput placeholder="Search products..." />
                                 <CommandList>
@@ -387,10 +389,6 @@ export function AddOrderDialog() {
                                         <CommandItem
                                             value={p.name}
                                             key={p.id}
-                                            onMouseDown={(e) => {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                            }}
                                             onSelect={() => {
                                                 const productToAdd = products.find(prod => prod.id === p.id);
                                                 if (productToAdd) {
