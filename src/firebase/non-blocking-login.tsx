@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  updateProfile,
 } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 
@@ -21,8 +22,16 @@ export function initiateAnonymousSignIn(authInstance: Auth): void {
 }
 
 /** Initiate email/password sign-up (non-blocking). */
-export function initiateEmailSignUp(authInstance: Auth, email: string, password: string): void {
-  createUserWithEmailAndPassword(authInstance, email, password).catch((error) => {
+export function initiateEmailSignUp(authInstance: Auth, email: string, password: string, firstName: string, lastName: string): void {
+  createUserWithEmailAndPassword(authInstance, email, password)
+    .then((userCredential) => {
+      // After creating the user, update their profile with the display name.
+      // This will be picked up by the onAuthStateChanged listener in FirebaseProvider.
+      return updateProfile(userCredential.user, {
+        displayName: `${firstName} ${lastName}`
+      });
+    })
+    .catch((error) => {
     if (error.code === 'auth/email-already-in-use') {
         toast({
             variant: "destructive",
