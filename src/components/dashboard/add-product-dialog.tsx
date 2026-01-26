@@ -3,16 +3,18 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { addDocumentNonBlocking, useFirestore } from "@/firebase";
+import { addDocumentNonBlocking, useFirestore, useStorage } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { FileUpload } from "@/components/ui/file-upload";
+import { Loader2 } from "lucide-react";
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -20,7 +22,7 @@ const productSchema = z.object({
   description: z.string().optional(),
   categoryId: z.string().min(1, "Category is required"),
   supplierLink: z.string().url().optional().or(z.literal('')),
-  images: z.string().min(1, "At least one image URL is required"), // will be a string from textarea, then split
+  images: z.custom<File[]>().refine((files) => files?.length > 0, "At least one image is required."),
   costPrice: z.coerce.number().min(0, "Cost price must be positive"),
   sellingPrice: z.coerce.number().min(0, "Selling price must be positive"),
   stock: z.coerce.number().int().min(0, "Stock must be a non-negative integer"),
@@ -28,7 +30,9 @@ const productSchema = z.object({
 
 export function AddProductDialog() {
   const [open, setOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const firestore = useFirestore();
+  const storage = useStorage();
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof productSchema>>({
@@ -39,7 +43,7 @@ export function AddProductDialog() {
       description: "",
       categoryId: "",
       supplierLink: "",
-      images: "",
+      images: [],
       costPrice: 0,
       sellingPrice: 0,
       stock: 0,
@@ -47,25 +51,40 @@ export function AddProductDialog() {
   });
 
   async function onSubmit(values: z.infer<typeof productSchema>) {
-    const productData = {
-      ...values,
-      images: values.images.split('\n').filter(url => url.trim() !== ''),
-    };
+    setIsUploading(true);
+    try {
+      const imageUrls = await Promise.all(
+        values.images.map(async (file) => {
+          const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
+          await uploadBytes(storageRef, file);
+          return getDownloadURL(storageRef);
+        })
+      );
 
-    if (productData.images.length === 0) {
-        form.setError("images", { type: "manual", message: "At least one image URL is required" });
-        return;
+      const productData = {
+        ...values,
+        images: imageUrls,
+      };
+
+      const productsCollection = collection(firestore, 'products');
+      addDocumentNonBlocking(productsCollection, productData);
+
+      toast({
+        title: "Product Added",
+        description: `${productData.name} has been added to your catalog.`,
+      });
+      form.reset();
+      setOpen(false);
+    } catch (error) {
+      console.error("Error uploading images or saving product:", error);
+      toast({
+        variant: "destructive",
+        title: "Action Failed",
+        description: "There was an error uploading images or saving the product. Please try again.",
+      });
+    } finally {
+      setIsUploading(false);
     }
-    
-    const productsCollection = collection(firestore, 'products');
-    addDocumentNonBlocking(productsCollection, productData);
-
-    toast({
-      title: "Product Added",
-      description: `${productData.name} has been added to your catalog.`,
-    });
-    form.reset();
-    setOpen(false);
   }
 
   return (
@@ -83,6 +102,22 @@ export function AddProductDialog() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid gap-2 py-4 max-h-[70vh] overflow-y-auto px-1">
+                <FormField
+                    control={form.control}
+                    name="images"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Product Images</FormLabel>
+                        <FormControl>
+                            <FileUpload 
+                                value={field.value} 
+                                onChange={field.onChange} 
+                            />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
                 <FormField
                     control={form.control}
                     name="name"
@@ -130,19 +165,6 @@ export function AddProductDialog() {
                         <FormLabel>Category</FormLabel>
                         <FormControl>
                             <Input placeholder="e.g., Kitchenware" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                 <FormField
-                    control={form.control}
-                    name="images"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Image URLs</FormLabel>
-                        <FormControl>
-                            <Textarea placeholder="Enter one image URL per line" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -202,7 +224,11 @@ export function AddProductDialog() {
                 />
             </div>
             <DialogFooter>
-              <Button type="submit">Save Product</Button>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isUploading}>Cancel</Button>
+              <Button type="submit" disabled={isUploading}>
+                {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Product
+              </Button>
             </DialogFooter>
           </form>
         </Form>
