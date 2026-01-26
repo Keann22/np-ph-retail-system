@@ -183,7 +183,7 @@ export function AddOrderDialog() {
                                 </Button>
                             </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent onPointerDownOutside={(e) => e.preventDefault()} className="w-[--radix-popover-trigger-width] p-0">
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                 <Command>
                                     <CommandInput placeholder="Search customers..." />
                                     <CommandList>
@@ -193,7 +193,9 @@ export function AddOrderDialog() {
                                             <CommandItem
                                                 value={`${c.firstName} ${c.lastName}`}
                                                 key={c.id}
-                                                onSelect={() => {
+                                                onMouseDown={(e) => {
+                                                  e.preventDefault();
+                                                  e.stopPropagation();
                                                   form.setValue("customerId", c.id)
                                                   setCustomerPopoverOpen(false)
                                                 }}
@@ -243,7 +245,7 @@ export function AddOrderDialog() {
                                     </Button>
                                 </FormControl>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start" onPointerDownOutside={(e) => e.preventDefault()}>
+                                <PopoverContent className="w-auto p-0" align="start">
                                 <Calendar
                                     mode="single"
                                     selected={field.value}
@@ -371,7 +373,7 @@ export function AddOrderDialog() {
                             Add product...
                         </Button>
                         </PopoverTrigger>
-                        <PopoverContent onPointerDownOutside={(e) => e.preventDefault()} className="w-[--radix-popover-trigger-width] p-0">
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                             <Command>
                                 <CommandInput placeholder="Search products..." />
                                 <CommandList>
@@ -381,7 +383,9 @@ export function AddOrderDialog() {
                                         <CommandItem
                                             value={p.name}
                                             key={p.id}
-                                            onSelect={() => {
+                                            onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
                                                 const productToAdd = products.find(prod => prod.id === p.id);
                                                 if (productToAdd) {
                                                     append({
