@@ -186,7 +186,7 @@ export function BulkUploadProductsDialog() {
              <FormField
                 control={form.control}
                 name="csvFile"
-                render={({ field: { onChange, ...fieldProps } }) => (
+                render={({ field: { onChange, value, ...fieldProps } }) => (
                   <FormItem>
                     <FormLabel>CSV File</FormLabel>
                     <FormControl>
@@ -204,7 +204,7 @@ export function BulkUploadProductsDialog() {
                 )}
               />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isUploading}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isUploading}>Cancel</Button>
               <Button type="submit" disabled={isUploading}>
                 {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Upload Products
