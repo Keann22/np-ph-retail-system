@@ -45,7 +45,6 @@ type Product = { id: string; name: string; stock: number; costPrice: number; sel
 
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
-  const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
   const [productPopoverOpen, setProductPopoverOpen] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -73,6 +72,25 @@ export function AddOrderDialog() {
       platformFees: 0,
     },
   });
+
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+        form.reset({
+            orderDate: new Date(),
+            orderItems: [],
+            paymentType: "Full Payment",
+            orderStatus: "Processing",
+            amountPaid: 0,
+            platformFees: 0,
+        });
+        setSelectedCustomer(null);
+        setCustomerSearch('');
+        setCustomerResults([]);
+        setProductSearch('');
+        setProductResults([]);
+    }
+    setOpen(isOpen);
+  };
 
   // Debounced search for customers
   useEffect(() => {
@@ -160,7 +178,7 @@ export function AddOrderDialog() {
 
 
   async function onSubmit(values: OrderFormValues) {
-    setOpen(false);
+    handleOpenChange(false);
 
     toast({
       title: "Creating Order...",
@@ -198,13 +216,11 @@ export function AddOrderDialog() {
             title: "Order Created",
             description: "The new order has been successfully saved.",
         });
-        form.reset();
-        setSelectedCustomer(null);
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>New Order</Button>
       </DialogTrigger>
@@ -219,59 +235,55 @@ export function AddOrderDialog() {
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto px-1 md:grid-cols-3 md:gap-8">
                 <div className="md:col-span-1 space-y-4">
-                    <FormField
+                  <FormField
                     control={form.control}
                     name="customerId"
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
-                        <FormLabel>Customer</FormLabel>
-                          <Popover modal={false} open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className={cn(
-                                    "w-full justify-between",
-                                    !field.value && "text-muted-foreground"
-                                )}
-                                >
-                                {field.value && selectedCustomer
-                                    ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}`
-                                    : "Select customer"}
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <FormLabel>Customer</FormLabel>
+                            {selectedCustomer ? (
+                                <div className="flex items-center justify-between rounded-md border border-input bg-background p-2 text-sm h-10">
+                                    <p>{selectedCustomer.firstName} {selectedCustomer.lastName}</p>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setSelectedCustomer(null);
+                                            form.setValue('customerId', '');
+                                        }}
+                                    >
+                                        Change
+                                    </Button>
+                                </div>
+                            ) : (
                                 <Command>
                                     <CommandInput 
-                                      placeholder="Search customers..." 
-                                      value={customerSearch} 
-                                      onValueChange={setCustomerSearch}
+                                        placeholder="Search customers by first name..." 
+                                        value={customerSearch} 
+                                        onValueChange={setCustomerSearch}
                                     />
                                     <CommandList>
-                                        {isSearchingCustomers && <div className="p-2 text-sm text-center">Searching...</div>}
+                                        {isSearchingCustomers && <CommandItem disabled>Searching...</CommandItem>}
                                         {!isSearchingCustomers && customerResults.length === 0 && customerSearch.length > 0 && <CommandEmpty>No customers found.</CommandEmpty>}
-                                        <CommandGroup>
-                                            {customerResults.map((c) => (
+                                        {customerResults.map((c) => (
                                             <CommandItem
-                                                value={`${c.firstName} ${c.lastName}`}
                                                 key={c.id}
+                                                value={`${c.firstName} ${c.lastName}`}
                                                 onSelect={() => {
                                                     form.setValue("customerId", c.id)
                                                     setSelectedCustomer(c);
-                                                    setCustomerPopoverOpen(false);
+                                                    setCustomerSearch('');
+                                                    setCustomerResults([]);
                                                 }}
                                             >
-                                                <Check className={cn("mr-2 h-4 w-4", c.id === field.value ? "opacity-100" : "opacity-0")} />
                                                 {c.firstName} {c.lastName}
                                             </CommandItem>
-                                            ))}
-                                        </CommandGroup>
+                                        ))}
                                     </CommandList>
                                 </Command>
-                            </PopoverContent>
-                          </Popover>
-                        <FormMessage />
+                            )}
+                            <FormMessage />
                         </FormItem>
                     )}
                     />
@@ -390,8 +402,8 @@ export function AddOrderDialog() {
                                                 });
                                             }
                                             setProductPopoverOpen(false);
+                                            setProductSearch('');
                                         }}
-                                        onPointerDown={(e) => e.preventDefault()}
                                     >
                                         {p.name}
                                     </CommandItem>
@@ -409,7 +421,7 @@ export function AddOrderDialog() {
                 </div>
             </div>
             <DialogFooter className="pt-8">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
                 <Button type="submit">Create Order</Button>
             </DialogFooter>
           </form>
