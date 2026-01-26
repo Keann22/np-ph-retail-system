@@ -1,3 +1,40 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "user-avatar-1",
+      "description": "Avatar for a user named Olivia Martin",
+      "imageUrl": "https://images.unsplash.com/photo-1580489944761-15a19d654956?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx3b21hbiUyMGF2YXRhcnxlbnwwfHx8fDE3NjkzNDEwODB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman avatar"
+    },
+    {
+      "id": "user-avatar-2",
+      "description": "Avatar for a user named Jackson Lee",
+      "imageUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxtYW4lMjBhdmF0YXJ8ZW58MHx8fHwxNzY5NDM4MzI4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man avatar"
+    },
+    {
+      "id": "user-avatar-3",
+      "description": "Avatar for a user named Isabella Nguyen",
+      "imageUrl": "https://images.unsplash.com/photo-1643732994192-03856731da2d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHx3b21hbiUyMGF2YXRhcnxlbnwwfHx8fDE3NjkzNDEwODB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman avatar"
+    },
+    {
+      "id": "user-avatar-4",
+      "description": "Avatar for a user named William Kim",
+      "imageUrl": "https://images.unsplash.com/photo-1640951613773-54706e06851d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxtYW4lMjBhdmF0YXJ8ZW58MHx8fHwxNzY5NDM4MzI4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man avatar"
+    },
+    {
+      "id": "user-avatar-5",
+      "description": "Avatar for a user named Sofia Davis",
+      "imageUrl": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHx3b21hbiUyMGF2YXRhcnxlbnwwfHx8fDE3NjkzNDEwODB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman avatar"
+    },
+    {
+      "id": "user-avatar-main",
+      "description": "Main user avatar for dropdown menu",
+      "imageUrl": "https://images.unsplash.com/photo-1640951613773-54706e06851d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHx1c2VyJTIwYXZhdGFyfGVufDB8fHx8MTc2OTM4MzkyNXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "user avatar"
+    }
+  ]
 }
