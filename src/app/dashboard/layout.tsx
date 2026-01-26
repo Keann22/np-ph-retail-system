@@ -16,13 +16,6 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -33,10 +26,17 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Logo } from '@/components/logo';
 import { useAuth, useUser } from '@/firebase';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
+const navLinks = [
+  { href: '/dashboard', label: 'Dashboard', icon: Home, badge: null },
+  { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, badge: 6 },
+  { href: '/dashboard/products', label: 'Products', icon: Package, badge: null },
+  { href: '/dashboard/customers', label: 'Customers', icon: Users, badge: null },
+  { href: '/dashboard/reports', label: 'Reports', icon: LineChart, badge: null },
+];
 
 export default function DashboardLayout({
   children,
@@ -46,6 +46,7 @@ export default function DashboardLayout({
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -77,44 +78,29 @@ export default function DashboardLayout({
           </div>
           <div className="flex-1">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              >
-                <Home className="h-4 w-4" />
-                Dashboard
-              </Link>
-              <Link
-                href="/dashboard/orders"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                Orders
-                <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  6
-                </Badge>
-              </Link>
-              <Link
-                href="/dashboard/products"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              >
-                <Package className="h-4 w-4" />
-                Products
-              </Link>
-              <Link
-                href="/dashboard/customers"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              >
-                <Users className="h-4 w-4" />
-                Customers
-              </Link>
-              <Link
-                href="/dashboard/reports"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              >
-                <LineChart className="h-4 w-4" />
-                Reports
-              </Link>
+              {navLinks.map((link) => {
+                const isActive = pathname === link.href;
+                const Icon = link.icon;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all ${
+                      isActive
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {link.label}
+                    {link.badge && (
+                      <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        {link.badge}
+                      </Badge>
+                    )}
+                  </Link>
+                );
+              })}
             </nav>
           </div>
         </div>
@@ -141,44 +127,29 @@ export default function DashboardLayout({
                   <Logo className="h-6 w-6" />
                   <span className="sr-only">RetailFlow</span>
                 </Link>
-                <Link
-                  href="/dashboard"
-                  className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                >
-                  <Home className="h-5 w-5" />
-                  Dashboard
-                </Link>
-                <Link
-                  href="/dashboard/orders"
-                  className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                >
-                  <ShoppingCart className="h-5 w-5" />
-                  Orders
-                  <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                    6
-                  </Badge>
-                </Link>
-                <Link
-                  href="/dashboard/products"
-                  className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                >
-                  <Package className="h-5 w-5" />
-                  Products
-                </Link>
-                <Link
-                  href="/dashboard/customers"
-                  className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                >
-                  <Users className="h-5 w-5" />
-                  Customers
-                </Link>
-                <Link
-                  href="/dashboard/reports"
-                  className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                >
-                  <LineChart className="h-5 w-5" />
-                  Reports
-                </Link>
+                {navLinks.map((link) => {
+                    const isActive = pathname === link.href;
+                    const Icon = link.icon;
+                    return (
+                        <Link
+                            key={link.href}
+                            href={link.href}
+                            className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${
+                                isActive
+                                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                                : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                            }`}
+                        >
+                            <Icon className="h-5 w-5" />
+                            {link.label}
+                            {link.badge && (
+                            <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                                {link.badge}
+                            </Badge>
+                            )}
+                        </Link>
+                    )
+                })}
               </nav>
             </SheetContent>
           </Sheet>
