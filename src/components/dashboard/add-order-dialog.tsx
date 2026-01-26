@@ -10,15 +10,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { addDocumentNonBlocking, updateDocumentNonBlocking, useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, doc, increment } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Check, ChevronsUpDown, Trash2, X } from "lucide-react";
+import { CalendarIcon, Check, ChevronsUpDown, Trash2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Textarea } from "../ui/textarea";
 
 const orderItemSchema = z.object({
   productId: z.string(),
@@ -71,7 +70,7 @@ export function AddOrderDialog() {
     },
   });
 
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "orderItems"
   });
@@ -144,7 +143,7 @@ export function AddOrderDialog() {
       <DialogTrigger asChild>
         <Button>New Order</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent className="sm:max-w-4xl" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Create New Order</DialogTitle>
           <DialogDescription>
@@ -184,7 +183,7 @@ export function AddOrderDialog() {
                                 </Button>
                             </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" onPointerDownOutside={(e) => e.preventDefault()}>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                 <Command>
                                     <CommandInput placeholder="Search customers..." />
                                     <CommandList>
@@ -244,7 +243,7 @@ export function AddOrderDialog() {
                                     </Button>
                                 </FormControl>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start" onPointerDownOutside={(e) => e.preventDefault()}>
+                                <PopoverContent className="w-auto p-0" align="start">
                                 <Calendar
                                     mode="single"
                                     selected={field.value}
@@ -372,7 +371,7 @@ export function AddOrderDialog() {
                             Add product...
                         </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" onPointerDownOutside={(e) => e.preventDefault()}>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                             <Command>
                                 <CommandInput placeholder="Search products..." />
                                 <CommandList>
@@ -382,8 +381,8 @@ export function AddOrderDialog() {
                                         <CommandItem
                                             value={p.name}
                                             key={p.id}
-                                            onSelect={() => {
-                                                const productToAdd = p;
+                                            onSelect={(currentValue) => {
+                                                const productToAdd = products.find(prod => prod.name.toLowerCase() === currentValue.toLowerCase());
                                                 if (productToAdd) {
                                                     append({
                                                         productId: productToAdd.id,
