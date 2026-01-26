@@ -12,7 +12,7 @@ import { collection, doc, getDocs, increment, query, where, orderBy, limit } fro
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Check, ChevronsUpDown, Loader2, Trash2 } from "lucide-react";
+import { CalendarIcon, Trash2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -45,7 +45,6 @@ type Product = { id: string; name: string; stock: number; costPrice: number; sel
 
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
-  const [productPopoverOpen, setProductPopoverOpen] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -257,7 +256,7 @@ export function AddOrderDialog() {
                                     </Button>
                                 </div>
                             ) : (
-                                <Command>
+                                <Command className="rounded-lg border">
                                     <CommandInput 
                                         placeholder="Search customers by first name..." 
                                         value={customerSearch} 
@@ -265,21 +264,26 @@ export function AddOrderDialog() {
                                     />
                                     <CommandList>
                                         {isSearchingCustomers && <CommandItem disabled>Searching...</CommandItem>}
-                                        {!isSearchingCustomers && customerResults.length === 0 && customerSearch.length > 0 && <CommandEmpty>No customers found.</CommandEmpty>}
-                                        {customerResults.map((c) => (
-                                            <CommandItem
-                                                key={c.id}
-                                                value={`${c.firstName} ${c.lastName}`}
-                                                onSelect={() => {
-                                                    form.setValue("customerId", c.id)
-                                                    setSelectedCustomer(c);
-                                                    setCustomerSearch('');
-                                                    setCustomerResults([]);
-                                                }}
-                                            >
-                                                {c.firstName} {c.lastName}
-                                            </CommandItem>
-                                        ))}
+                                        {customerResults.length > 0 && (
+                                            <CommandGroup>
+                                            {customerResults.map((c) => (
+                                                <CommandItem
+                                                    key={c.id}
+                                                    value={`${c.firstName} ${c.lastName}`}
+                                                    onSelect={() => {
+                                                        form.setValue("customerId", c.id)
+                                                        setSelectedCustomer(c);
+                                                        setCustomerSearch('');
+                                                        setCustomerResults([]);
+                                                    }}
+                                                    onPointerDown={(e) => e.preventDefault()}
+                                                >
+                                                    {c.firstName} {c.lastName}
+                                                </CommandItem>
+                                            ))}
+                                            </CommandGroup>
+                                        )}
+                                        {!isSearchingCustomers && customerResults.length === 0 && customerSearch.length > 1 && <CommandEmpty>No customers found.</CommandEmpty>}
                                     </CommandList>
                                 </Command>
                             )}
@@ -368,51 +372,62 @@ export function AddOrderDialog() {
                            ))}
                            {fields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No items added to order.</p>}
                         </div>
-                        <FormMessage>{form.formState.errors.orderItems?.message}</FormMessage>
+                        <FormMessage>{form.formState.errors.orderItems?.message || form.formState.errors.orderItems?.root?.message}</FormMessage>
                     </div>
 
-                    <Popover modal={false} open={productPopoverOpen} onOpenChange={setProductPopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start">Add product...</Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <Command>
-                            <CommandInput 
-                                placeholder="Search products..." 
-                                value={productSearch}
-                                onValueChange={setProductSearch}
-                            />
-                            <CommandList>
-                                {isSearchingProducts && <div className="p-2 text-sm text-center">Searching...</div>}
-                                {!isSearchingProducts && productResults.length === 0 && productSearch.length > 0 && <CommandEmpty>No products found.</CommandEmpty>}
+                    <Command className="rounded-lg border">
+                        <CommandInput 
+                            placeholder="Search to add products..." 
+                            value={productSearch}
+                            onValueChange={setProductSearch}
+                        />
+                        <CommandList>
+                            {isSearchingProducts && <CommandItem disabled>Searching...</CommandItem>}
+                            {productResults.length > 0 && (
                                 <CommandGroup>
-                                    {productResults.map((p) => (
-                                    <CommandItem
-                                        value={p.name}
-                                        key={p.id}
-                                        onSelect={() => {
-                                            const productToAdd = productResults.find(prod => prod.id === p.id);
-                                            if (productToAdd) {
-                                                append({
-                                                    productId: productToAdd.id,
-                                                    productName: productToAdd.name,
-                                                    quantity: 1,
-                                                    costPriceAtSale: productToAdd.costPrice,
-                                                    sellingPriceAtSale: productToAdd.sellingPrice,
-                                                });
-                                            }
-                                            setProductPopoverOpen(false);
+                                {productResults.map((p) => (
+                                <CommandItem
+                                    value={p.name}
+                                    key={p.id}
+                                    onPointerDown={(e) => e.preventDefault()}
+                                    onSelect={() => {
+                                        const isAlreadyAdded = fields.some(item => item.productId === p.id);
+                                        if (isAlreadyAdded) {
+                                            toast({
+                                                variant: "default",
+                                                title: "Product already in order",
+                                                description: `${p.name} is already in this order. You can adjust the quantity above.`,
+                                            });
                                             setProductSearch('');
-                                        }}
-                                    >
-                                        {p.name}
-                                    </CommandItem>
-                                    ))}
+                                            setProductResults([]);
+                                            return;
+                                        }
+                                        
+                                        const productToAdd = productResults.find(prod => prod.id === p.id);
+                                        if (productToAdd) {
+                                            append({
+                                                productId: productToAdd.id,
+                                                productName: productToAdd.name,
+                                                quantity: 1,
+                                                costPriceAtSale: productToAdd.costPrice,
+                                                sellingPriceAtSale: productToAdd.sellingPrice,
+                                            });
+                                        }
+                                        setProductSearch('');
+                                        setProductResults([]);
+                                    }}
+                                >
+                                  <div className="flex justify-between w-full">
+                                    <span>{p.name}</span>
+                                    <span className="text-xs text-muted-foreground">Stock: {p.stock}</span>
+                                  </div>
+                                </CommandItem>
+                                ))}
                                 </CommandGroup>
-                            </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                            )}
+                            {!isSearchingProducts && productResults.length === 0 && productSearch.length > 1 && <CommandEmpty>No products found.</CommandEmpty>}
+                        </CommandList>
+                    </Command>
                     
                     <div className="pt-4 space-y-2">
                         <div className="flex justify-between"><p className="text-muted-foreground">Subtotal</p><p>₱{totalAmount.toFixed(2)}</p></div>
