@@ -2,18 +2,75 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function getUserRoles() {
+      // Use exists to prevent errors on new users who don't have a user doc yet.
+      if (exists(/databases/$(database)/documents/users/$(request.auth.uid))) {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
+      }
+      return [];
+    }
+
+    function hasAnyRole(roles) {
+      return request.auth != null && getUserRoles().hasAny(roles);
+    }
     
-    // Allow any authenticated user to read/write to these collections
-    match /orders/{orderId} {
-      allow read, write: if request.auth != null;
+    function isOwner() {
+      return hasAnyRole(['Owner']);
+    }
+    
+    function isAdmin() {
+      return hasAnyRole(['Owner', 'Admin']);
+    }
+
+    match /users/{userId} {
+      allow read: if isAdmin() || request.auth.uid == userId;
+      allow write: if isAdmin();
+      allow delete: if isOwner() && request.auth.uid != userId; // Owner can delete others, but not themselves
+    }
+    
+    match /products/{productId} {
+        allow get, list: if request.auth != null;
+        allow create: if hasAnyRole(['Owner', 'Admin', 'Warehouse Manager', 'Sales']);
+        allow update: if isAdmin() || (hasAnyRole(['Warehouse Manager', 'Sales']) && !('costPrice' in request.resource.data));
+        allow delete: if isAdmin();
     }
 
     match /customers/{customerId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if hasAnyRole(['Owner', 'Admin', 'Sales']);
     }
 
-    match /products/{productId} {
-      allow read, write: if request.auth != null;
+    match /orders/{orderId} {
+      allow read, write: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+    }
+    
+    match /orderItems/{orderItemId} {
+      allow read, write: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+    }
+    
+    match /inventoryMovements/{inventoryMovementId} {
+        allow read, write: if hasAnyRole(['Owner', 'Admin', 'Warehouse Manager', 'Sales']);
+    }
+    
+    match /payments/{paymentId} {
+        allow read, write: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+    }
+    
+    match /categories/{categoryId} {
+        allow read, write: if hasAnyRole(['Owner', 'Admin', 'Warehouse Manager', 'Sales']);
+    }
+
+    match /expenses/{expenseId} {
+        allow read, write: if isAdmin();
+    }
+    match /returns/{returnId} {
+        allow read, write: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+    }
+    match /refunds/{refundId} {
+        allow read, write: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+    }
+    match /badDebts/{badDebtId} {
+        allow read, write: if isAdmin();
     }
 
     // Default rule: deny everything else for safety

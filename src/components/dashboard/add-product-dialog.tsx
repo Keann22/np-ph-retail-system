@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { FileUpload } from "@/components/ui/file-upload";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -32,6 +33,9 @@ export function AddProductDialog() {
   const firestore = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
+  const { userProfile } = useUserProfile();
+
+  const canViewCostPrice = userProfile && (userProfile.roles.includes('Owner') || userProfile.roles.includes('Admin'));
 
   const form = useForm<z.infer<typeof productSchema>>({
     resolver: zodResolver(productSchema),
@@ -203,19 +207,21 @@ export function AddProductDialog() {
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={form.control}
-                    name="costPrice"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Cost Price (₱)</FormLabel>
-                        <FormControl>
-                            <Input type="number" step="0.01" placeholder="20.00" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                {canViewCostPrice && (
+                  <FormField
+                      control={form.control}
+                      name="costPrice"
+                      render={({ field }) => (
+                          <FormItem>
+                          <FormLabel>Cost Price (₱)</FormLabel>
+                          <FormControl>
+                              <Input type="number" step="0.01" placeholder="20.00" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+                )}
                  <FormField
                     control={form.control}
                     name="sellingPrice"
