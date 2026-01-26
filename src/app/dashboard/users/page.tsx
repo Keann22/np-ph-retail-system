@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -44,6 +45,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { EditUserDialog } from '@/components/dashboard/edit-user-dialog';
 
 // Matches the Firestore document structure for a user profile
 export type UserProfile = {
@@ -57,6 +59,7 @@ export type UserProfile = {
 export default function UsersPage() {
   const firestore = useFirestore();
   const { userProfile: currentUserProfile } = useUserProfile();
+  const [editingRolesUser, setEditingRolesUser] = useState<UserProfile | null>(null);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [deletingUser, setDeletingUser] = useState<UserProfile | null>(null);
   const { toast } = useToast();
@@ -168,7 +171,9 @@ export default function UsersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => setEditingUser(user)}>Edit Roles</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setEditingUser(user)}>Edit User</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setEditingRolesUser(user)}>Edit Roles</DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive focus:bg-destructive/10"
                             onClick={() => setDeletingUser(user)}
@@ -200,10 +205,15 @@ export default function UsersPage() {
           </CardFooter>
         )}
       </Card>
-      <EditUserRolesDialog 
+      <EditUserDialog
         user={editingUser}
         open={!!editingUser}
         onOpenChange={(isOpen) => !isOpen && setEditingUser(null)}
+      />
+      <EditUserRolesDialog 
+        user={editingRolesUser}
+        open={!!editingRolesUser}
+        onOpenChange={(isOpen) => !isOpen && setEditingRolesUser(null)}
       />
       <AlertDialog open={!!deletingUser} onOpenChange={(isOpen) => !isOpen && setDeletingUser(null)}>
         <AlertDialogContent>
