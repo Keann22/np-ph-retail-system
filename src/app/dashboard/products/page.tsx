@@ -44,6 +44,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // Matches the Firestore document structure for a product
 type Product = {
@@ -78,6 +79,8 @@ const getStatus = (stock: number): { text: 'In Stock' | 'Low Stock' | 'Out of St
 export default function ProductsPage() {
   const firestore = useFirestore();
   const [deletingProduct, setDeletingProduct] = useState<FormattedProduct | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const { toast } = useToast();
 
   const productsQuery = useMemoFirebase(
@@ -107,6 +110,23 @@ export default function ProductsPage() {
     setDeletingProduct(null);
   }
 
+  const handleBulkDeleteConfirm = () => {
+    if (!firestore || selectedProductIds.length === 0) return;
+
+    selectedProductIds.forEach(productId => {
+        const productDocRef = doc(firestore, 'products', productId);
+        deleteDocumentNonBlocking(productDocRef);
+    });
+
+    toast({
+      title: "Bulk Deletion Initiated",
+      description: `${selectedProductIds.length} products have been queued for deletion.`,
+    });
+
+    setShowBulkDeleteConfirm(false);
+    setSelectedProductIds([]); // Clear selection
+  };
+
   return (
     <>
       <Card>
@@ -123,9 +143,35 @@ export default function ProductsPage() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+              {selectedProductIds.length > 0 && (
+                  <Button
+                      variant="destructive"
+                      onClick={() => setShowBulkDeleteConfirm(true)}
+                  >
+                      Delete Selected ({selectedProductIds.length})
+                  </Button>
+              )}
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[50px]">
+                  <Checkbox
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedProductIds(formattedProducts?.map(p => p.id) || []);
+                      } else {
+                        setSelectedProductIds([]);
+                      }
+                    }}
+                    checked={
+                      (formattedProducts?.length ?? 0) > 0 &&
+                      selectedProductIds.length === formattedProducts?.length
+                    }
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead className="hidden w-[100px] sm:table-cell">
                   <span className="sr-only">Image</span>
                 </TableHead>
@@ -143,6 +189,9 @@ export default function ProductsPage() {
             <TableBody>
               {isLoading && Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
+                      <TableCell>
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
                       <TableCell className="hidden sm:table-cell">
                           <Skeleton className="aspect-square rounded-md h-16 w-16" />
                       </TableCell>
@@ -156,7 +205,20 @@ export default function ProductsPage() {
                   </TableRow>
               ))}
               {formattedProducts && formattedProducts.map((product) => (
-                <TableRow key={product.id}>
+                <TableRow key={product.id} data-state={selectedProductIds.includes(product.id) ? 'selected' : undefined}>
+                  <TableCell>
+                    <Checkbox
+                        onCheckedChange={(checked) => {
+                            setSelectedProductIds((prevIds) =>
+                            checked
+                                ? [...prevIds, product.id]
+                                : prevIds.filter((id) => id !== product.id)
+                            );
+                        }}
+                        checked={selectedProductIds.includes(product.id)}
+                        aria-label={`Select product ${product.name}`}
+                    />
+                  </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <Image
                       alt="Product image"
@@ -234,6 +296,26 @@ export default function ProductsPage() {
             <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={handleDeleteConfirm}
+            >
+                Delete
+            </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+                This action will permanently delete the {selectedProductIds.length} selected products. This action cannot be undone.
+            </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={handleBulkDeleteConfirm}
             >
                 Delete
             </AlertDialogAction>
