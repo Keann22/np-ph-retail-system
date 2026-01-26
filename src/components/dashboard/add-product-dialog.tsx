@@ -14,7 +14,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { FileUpload } from "@/components/ui/file-upload";
-import { Loader2 } from "lucide-react";
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -30,7 +29,6 @@ const productSchema = z.object({
 
 export function AddProductDialog() {
   const [open, setOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const firestore = useFirestore();
   const storage = useStorage();
   const { toast } = useToast();
@@ -50,41 +48,49 @@ export function AddProductDialog() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof productSchema>) {
-    setIsUploading(true);
-    try {
-      const imageUrls = await Promise.all(
-        values.images.map(async (file) => {
-          const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
-          await uploadBytes(storageRef, file);
-          return getDownloadURL(storageRef);
-        })
-      );
+  function onSubmit(values: z.infer<typeof productSchema>) {
+    setOpen(false);
+    
+    toast({
+      title: "Adding Product...",
+      description: `Your product "${values.name}" is being added.`,
+    });
 
-      const productData = {
-        ...values,
-        images: imageUrls,
-      };
+    const uploadAndSave = async () => {
+      try {
+        const imageUrls = await Promise.all(
+          values.images.map(async (file) => {
+            const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
+            await uploadBytes(storageRef, file);
+            return getDownloadURL(storageRef);
+          })
+        );
 
-      const productsCollection = collection(firestore, 'products');
-      addDocumentNonBlocking(productsCollection, productData);
+        const productData = {
+          ...values,
+          images: imageUrls,
+        };
 
-      toast({
-        title: "Product Added",
-        description: `${productData.name} has been added to your catalog.`,
-      });
-      form.reset();
-      setOpen(false);
-    } catch (error) {
-      console.error("Error uploading images or saving product:", error);
-      toast({
-        variant: "destructive",
-        title: "Action Failed",
-        description: "There was an error uploading images or saving the product. Please try again.",
-      });
-    } finally {
-      setIsUploading(false);
-    }
+        const productsCollection = collection(firestore, 'products');
+        await addDocumentNonBlocking(productsCollection, productData);
+
+        toast({
+          title: "Product Added",
+          description: `${productData.name} has been added to your catalog.`,
+        });
+        
+      } catch (error) {
+        console.error("Error uploading images or saving product:", error);
+        toast({
+          variant: "destructive",
+          title: "Action Failed",
+          description: "There was an error uploading images or saving the product. Please try again.",
+        });
+      }
+    };
+
+    uploadAndSave();
+    form.reset();
   }
 
   return (
@@ -224,9 +230,8 @@ export function AddProductDialog() {
                 />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isUploading}>Cancel</Button>
-              <Button type="submit" disabled={isUploading}>
-                {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button type="submit">
                 Save Product
               </Button>
             </DialogFooter>
