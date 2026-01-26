@@ -129,7 +129,6 @@
         "description",
         "categoryId",
         "supplierLink",
-        "images",
         "costPrice",
         "sellingPrice",
         "stock"

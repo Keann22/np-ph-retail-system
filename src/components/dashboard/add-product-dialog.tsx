@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { addDocumentNonBlocking, useFirestore, useStorage } from "@/firebase";
+import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore, useStorage } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -53,32 +53,48 @@ export function AddProductDialog() {
     
     toast({
       title: "Adding Product...",
-      description: `Your product "${values.name}" is being added in the background.`,
+      description: `Your product "${values.name}" is being added.`,
     });
 
-    const uploadAndSave = async () => {
+    const { images: imageFiles, ...productCoreData } = values;
+
+    const productsCollection = collection(firestore, 'products');
+
+    // Create the product document immediately with an empty images array.
+    // The product will appear in the list right away.
+    addDocumentNonBlocking(productsCollection, {
+      ...productCoreData,
+      images: [], 
+    })
+    .then(async (newProductRef) => {
+      if (!newProductRef) {
+        // This case is handled by the error emitter inside addDocumentNonBlocking
+        toast({
+          variant: "destructive",
+          title: "Save Failed",
+          description: `Could not start saving product "${values.name}".`,
+        });
+        return;
+      }
+
+      // Now, upload images and update the document in the background.
       try {
         const imageUrls = await Promise.all(
-          values.images.map(async (file) => {
+          imageFiles.map(async (file) => {
             const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
             await uploadBytes(storageRef, file);
             return getDownloadURL(storageRef);
           })
         );
 
-        const productData = {
-          ...values,
-          images: imageUrls,
-        };
+        // Update the document with the final image URLs
+        updateDocumentNonBlocking(newProductRef, { images: imageUrls });
 
-        const productsCollection = collection(firestore, 'products');
-        const newProductRef = await addDocumentNonBlocking(productsCollection, productData);
-
-        if (newProductRef && productData.stock > 0) {
+        if (productCoreData.stock > 0) {
             const inventoryMovementsCollection = collection(firestore, 'inventoryMovements');
             const inventoryMovementData = {
                 productId: newProductRef.id,
-                quantityChange: productData.stock,
+                quantityChange: productCoreData.stock,
                 movementType: 'initial_stock',
                 timestamp: new Date().toISOString(),
                 reason: 'Initial stock for new product',
@@ -86,23 +102,21 @@ export function AddProductDialog() {
             addDocumentNonBlocking(inventoryMovementsCollection, inventoryMovementData);
         }
 
-
         toast({
           title: "Product Added",
-          description: `${productData.name} has been added to your catalog.`,
+          description: `${productCoreData.name} has been successfully added.`,
         });
         
       } catch (error) {
-        console.error("Error uploading images or saving product:", error);
+        console.error("Error during background product update:", error);
         toast({
           variant: "destructive",
-          title: "Action Failed",
-          description: `Could not save product "${values.name}". Please try again.`,
+          title: "Upload Failed",
+          description: `Product "${values.name}" was created, but image upload failed.`,
         });
       }
-    };
+    });
 
-    uploadAndSave();
     form.reset();
   }
 
