@@ -47,6 +47,8 @@ type Product = { id: string; name: string; stock: number; costPrice: number; sel
 
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
+  const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [productPopoverOpen, setProductPopoverOpen] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -160,7 +162,7 @@ export function AddOrderDialog() {
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
                         <FormLabel>Customer</FormLabel>
-                        <Popover>
+                        <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
                             <PopoverTrigger asChild>
                             <FormControl>
                                 <Button
@@ -193,7 +195,8 @@ export function AddOrderDialog() {
                                                 value={`${c.firstName} ${c.lastName}`}
                                                 key={c.id}
                                                 onSelect={() => {
-                                                form.setValue("customerId", c.id)
+                                                  form.setValue("customerId", c.id)
+                                                  setCustomerPopoverOpen(false)
                                                 }}
                                             >
                                                 <Check
@@ -222,7 +225,7 @@ export function AddOrderDialog() {
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
                             <FormLabel>Order Date</FormLabel>
-                            <Popover>
+                            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                                 <PopoverTrigger asChild>
                                 <FormControl>
                                     <Button
@@ -245,7 +248,10 @@ export function AddOrderDialog() {
                                 <Calendar
                                     mode="single"
                                     selected={field.value}
-                                    onSelect={field.onChange}
+                                    onSelect={(date) => {
+                                        field.onChange(date);
+                                        setDatePickerOpen(false);
+                                    }}
                                     initialFocus
                                 />
                                 </PopoverContent>
@@ -374,10 +380,10 @@ export function AddOrderDialog() {
                                     <CommandGroup>
                                         {products?.map((p) => (
                                         <CommandItem
-                                            value={p.id}
+                                            value={p.name}
                                             key={p.id}
-                                            onSelect={(selectedProductId) => {
-                                                const productToAdd = products?.find(prod => prod.id === selectedProductId);
+                                            onSelect={() => {
+                                                const productToAdd = p;
                                                 if (productToAdd) {
                                                     append({
                                                         productId: productToAdd.id,
