@@ -140,16 +140,7 @@ export function AddOrderDialog() {
       <DialogTrigger asChild>
         <Button>New Order</Button>
       </DialogTrigger>
-      <DialogContent 
-        className="sm:max-w-4xl"
-        onPointerDownOutside={(e) => {
-          const target = e.target as HTMLElement;
-          // Prevent dialog from closing when interacting with any popover
-          if (target.closest('[data-radix-popover-content]')) {
-            e.preventDefault();
-          }
-        }}
-      >
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Create New Order</DialogTitle>
           <DialogDescription>
@@ -167,7 +158,7 @@ export function AddOrderDialog() {
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
                         <FormLabel>Customer</FormLabel>
-                        <Popover>
+                        <Popover modal={false}>
                             <PopoverTrigger asChild>
                             <FormControl>
                                 <Button
@@ -203,9 +194,6 @@ export function AddOrderDialog() {
                                                 key={c.id}
                                                 onSelect={() => {
                                                   form.setValue("customerId", c.id)
-                                                  // Manually close popover on select
-                                                  const trigger = document.querySelector(`[data-radix-popover-trigger][aria-controls="${(document.querySelector('[cmdk-root]')?.closest('[data-radix-popover-content]')?.id)}"]`) as HTMLElement;
-                                                  trigger?.click();
                                                 }}
                                             >
                                                 <Check
@@ -234,7 +222,7 @@ export function AddOrderDialog() {
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
                             <FormLabel>Order Date</FormLabel>
-                            <Popover>
+                            <Popover modal={false}>
                                 <PopoverTrigger asChild>
                                 <FormControl>
                                     <Button
@@ -367,7 +355,7 @@ export function AddOrderDialog() {
                         <FormMessage>{form.formState.errors.orderItems?.message}</FormMessage>
                     </div>
 
-                    <Popover>
+                    <Popover modal={false}>
                         <PopoverTrigger asChild>
                         <Button
                             variant="outline"
@@ -400,8 +388,6 @@ export function AddOrderDialog() {
                                                         sellingPriceAtSale: productToAdd.sellingPrice,
                                                     });
                                                 }
-                                                const trigger = document.querySelector(`[data-radix-popover-trigger][aria-controls="${(document.querySelector('[cmdk-root]')?.closest('[data-radix-popover-content]')?.id)}"]`) as HTMLElement;
-                                                trigger?.click();
                                             }}
                                         >
                                             {p.name}
