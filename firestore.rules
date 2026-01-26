@@ -6,7 +6,7 @@ service cloud.firestore {
     /**
      * Core Philosophy: This ruleset implements a strict Role-Based Access Control (RBAC) model
      * for a retail management application. A special "Owner" account, identified by the email
-     * 'Keneth@owner.com', has universal god-mode access to all data. For all other users,
+     * 'keneth@owner.com', has universal god-mode access to all data. For all other users,
      * access is determined by a `roleId` stored on their user profile document in the `/users`
      * collection. This role dictates their permissions for viewing and modifying business-related
      * data collections like products, orders, and customers.
@@ -47,7 +47,7 @@ service cloud.firestore {
      * This grants god-mode access across the entire database.
      */
     function isOwnerAccount() {
-      return isSignedIn() && request.auth.token.email == 'Keneth@owner.com';
+      return isSignedIn() && request.auth.token.email == 'keneth@owner.com';
     }
 
     /**
