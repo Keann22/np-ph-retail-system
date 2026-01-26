@@ -24,14 +24,15 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // A user can create their own document and read it.
-      allow get: if request.auth.uid == userId || isAdmin();
+      // Allow users to create and manage their own profile.
+      // Admins can manage any user.
+      allow read, update: if request.auth.uid == userId || isAdmin();
       allow create: if request.auth.uid == userId;
-      
-      // An admin can see all users and update anyone's roles.
-      allow list, update: if isAdmin();
 
-      // An owner can delete users (but not themselves).
+      // Only admins/owners can list all users.
+      allow list: if isAdmin();
+      
+      // Only owners can delete users.
       allow delete: if isOwner() && request.auth.uid != userId;
     }
     
