@@ -4,6 +4,7 @@ import {
   signInAnonymously,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 
@@ -57,5 +58,25 @@ export function initiateEmailSignIn(authInstance: Auth, email: string, password:
                 description: "An unexpected error occurred. Please try again.",
             });
         }
+    });
+}
+
+/** Initiate password reset email (non-blocking). */
+export function initiatePasswordReset(authInstance: Auth, email: string): void {
+  sendPasswordResetEmail(authInstance, email)
+    .then(() => {
+      toast({
+        title: 'Password Reset Email Sent',
+        description: `If an account exists for ${email}, a password reset link has been sent.`,
+      });
+    })
+    .catch((error) => {
+      // Don't reveal if the user exists for security reasons. Log the actual error for debugging.
+      console.error('Password reset error:', error);
+      // Show a generic message to the user.
+      toast({
+        title: 'Password Reset Email Sent',
+        description: `If an account exists for ${email}, a password reset link has been sent.`,
+      });
     });
 }
