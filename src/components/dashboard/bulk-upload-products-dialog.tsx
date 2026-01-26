@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, useFirestore } from "@/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -39,6 +39,9 @@ export function BulkUploadProductsDialog() {
 
   const form = useForm<z.infer<typeof bulkUploadSchema>>({
     resolver: zodResolver(bulkUploadSchema),
+    defaultValues: {
+      csvFile: undefined,
+    }
   });
 
   const processCsvData = async (csvData: string) => {
@@ -214,17 +217,17 @@ export function BulkUploadProductsDialog() {
              <FormField
                 control={form.control}
                 name="csvFile"
-                render={({ field: { onChange, ...fieldProps } }) => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>CSV File</FormLabel>
                     <FormControl>
                       <Input
                         type="file"
                         accept=".csv"
-                        {...fieldProps}
-                        onChange={(event) => {
-                          onChange(event.target.files);
-                        }}
+                        ref={field.ref}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        onChange={(e) => field.onChange(e.target.files)}
                       />
                     </FormControl>
                     <FormMessage />
