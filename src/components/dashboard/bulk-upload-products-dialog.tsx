@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, useFirestore } from "@/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -25,8 +25,73 @@ const bulkUploadSchema = z.object({
     ),
 });
 
-// Matches the expected CSV header, description is removed
-const EXPECTED_HEADERS = ['name', 'sku', 'categoryId', 'sellingPrice', 'costPrice', 'stock', 'supplierLink'];
+// Matches the expected CSV header
+const EXPECTED_HEADERS = ['name', 'sku', 'description', 'categoryId', 'sellingPrice', 'costPrice', 'stock', 'supplierLink'];
+
+/**
+ * Parses a CSV string into headers and rows, handling quoted fields with commas and newlines.
+ * @param csvData The raw string data from a CSV file.
+ * @returns An object with `headers` (an array of strings) and `rows` (an array of string arrays).
+ */
+const parseCsvDataRobustly = (csvData: string): { headers: string[], rows: string[][] } => {
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentField = '';
+    let inQuotedField = false;
+    
+    // Normalize line endings to \n
+    const data = csvData.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    for (let i = 0; i < data.length; i++) {
+        const char = data[i];
+
+        if (inQuotedField) {
+            if (char === '"') {
+                if (i + 1 < data.length && data[i + 1] === '"') {
+                    // This is an escaped double quote (e.g., "The 24"" model")
+                    currentField += '"';
+                    i++; // Skip the next quote
+                } else {
+                    // This is the end of a quoted field
+                    inQuotedField = false;
+                }
+            } else {
+                // Character inside a quoted field
+                currentField += char;
+            }
+        } else {
+            if (char === '"') {
+                // Start of a quoted field
+                inQuotedField = true;
+            } else if (char === ',') {
+                // End of a field
+                currentRow.push(currentField);
+                currentField = '';
+            } else if (char === '\n') {
+                // End of a row
+                currentRow.push(currentField);
+                rows.push(currentRow);
+                currentRow = [];
+                currentField = '';
+            } else {
+                // Regular character
+                currentField += char;
+            }
+        }
+    }
+    // Add the last field and row if the file doesn't end with a newline
+    if (currentField || currentRow.length > 0) {
+        currentRow.push(currentField);
+        rows.push(currentRow);
+    }
+    
+    const headers = rows.length > 0 ? rows.shift()!.map(h => h.trim()) : [];
+    // Filter out any completely empty rows that might result from trailing newlines
+    const dataRows = rows.filter(row => row.some(field => field.trim() !== ''));
+
+    return { headers, rows: dataRows };
+};
+
 
 export function BulkUploadProductsDialog() {
   const [open, setOpen] = useState(false);
@@ -39,28 +104,31 @@ export function BulkUploadProductsDialog() {
 
   const form = useForm<z.infer<typeof bulkUploadSchema>>({
     resolver: zodResolver(bulkUploadSchema),
-    defaultValues: {
-      csvFile: undefined,
-    }
   });
 
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      form.reset();
+    }
+    setOpen(isOpen);
+  }
+
   const processCsvData = async (csvData: string) => {
-    const lines = csvData.trim().split('\n');
-    if (lines.length < 2) {
+    const { headers, rows: dataRows } = parseCsvDataRobustly(csvData);
+
+    if (dataRows.length === 0) {
       toast({
         variant: "destructive",
         title: "Invalid CSV Data",
-        description: "Your CSV data must include a header row and at least one product row.",
+        description: "Your CSV file must include a header row and at least one product row.",
       });
       setIsUploading(false);
       return;
     }
-
-    const headers = lines[0].split(',').map(h => h.trim());
     
     const requiredHeaders = canViewCostPrice 
-      ? EXPECTED_HEADERS 
-      : EXPECTED_HEADERS.filter(h => h !== 'costPrice');
+      ? EXPECTED_HEADERS.filter(h => h !== 'description') 
+      : EXPECTED_HEADERS.filter(h => h !== 'costPrice' && h !== 'description');
       
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
@@ -68,64 +136,55 @@ export function BulkUploadProductsDialog() {
         toast({
             variant: "destructive",
             title: "Invalid CSV Header",
-            description: `The following required columns are missing: ${missingHeaders.join(', ')}. Please ensure your CSV file matches the required format.`,
+            description: `The following required columns are missing: ${missingHeaders.join(', ')}.`,
         });
         setIsUploading(false);
         return;
     }
 
+    const headerMap = headers.reduce((acc, header, index) => {
+        acc[header] = index;
+        return acc;
+    }, {} as {[key: string]: number});
+
     const productsCollection = collection(firestore, 'products');
     const inventoryMovementsCollection = collection(firestore, 'inventoryMovements');
 
-    // Fetch all existing SKUs to prevent duplicates
     const existingProductsSnapshot = await getDocs(productsCollection);
     const existingSkus = new Set(existingProductsSnapshot.docs.map(doc => doc.data().sku));
 
-    const dataRows = lines.slice(1);
     const uploadPromises: Promise<void>[] = [];
     let successfulUploads = 0;
     let skippedCount = 0;
 
-    for (const line of dataRows) {
-        // This is a naive CSV parser. It will fail if values contain commas.
-        const values = line.split(',');
-        const productObj: {[key: string]: any} = {};
-        headers.forEach((header, index) => {
-            productObj[header] = values[index]?.trim() || '';
-        });
-
-        const sku = productObj.sku;
-
-        if (!productObj.name && !sku) {
-            console.warn(`Skipping row because both name and SKU are missing: ${line}`);
-            continue; // Skip what seems to be an empty row
-        }
+    for (const row of dataRows) {
+        const sku = row[headerMap['sku']]?.trim();
 
         if (!sku) {
-            console.warn(`Skipping product "${productObj.name}" because SKU is missing.`);
+            console.warn(`Skipping row because SKU is missing: ${row.join(',')}`);
             skippedCount++;
-            continue; // Skip products without an SKU
+            continue;
         }
 
         if (existingSkus.has(sku)) {
             console.warn(`Skipping duplicate SKU: ${sku}`);
             skippedCount++;
-            continue; // Skip if SKU already exists in DB or in a previous row of this file
+            continue;
         }
         
-        existingSkus.add(sku); // Add to set to catch duplicates within the same file
+        existingSkus.add(sku);
 
-        const stock = parseInt(productObj.stock, 10) || 0;
-        const sellingPrice = parseFloat(productObj.sellingPrice) || 0;
-        const costPrice = canViewCostPrice ? (parseFloat(productObj.costPrice) || 0) : 0;
+        const stock = parseInt(row[headerMap['stock']]?.trim(), 10) || 0;
+        const sellingPrice = parseFloat(row[headerMap['sellingPrice']]?.trim()) || 0;
+        const costPrice = canViewCostPrice ? (parseFloat(row[headerMap['costPrice']]?.trim()) || 0) : 0;
 
         const productData = {
-            name: productObj.name || '',
+            name: row[headerMap['name']]?.trim() || '',
             sku: sku,
-            description: '', // Description is intentionally left blank for bulk uploads
-            categoryId: productObj.categoryId || 'Uncategorized',
-            supplierLink: productObj.supplierLink || '',
-            images: [], // Images are not supported in this bulk upload
+            description: row[headerMap['description']]?.trim() || '',
+            categoryId: row[headerMap['categoryId']]?.trim() || 'Uncategorized',
+            supplierLink: row[headerMap['supplierLink']]?.trim() || '',
+            images: [],
             sellingPrice,
             costPrice,
             stock,
@@ -153,8 +212,7 @@ export function BulkUploadProductsDialog() {
     await Promise.all(uploadPromises);
     
     setIsUploading(false);
-    setOpen(false);
-    form.reset();
+    handleOpenChange(false);
 
     let description = `${successfulUploads} products were uploaded.`;
     if (skippedCount > 0) {
@@ -195,11 +253,11 @@ export function BulkUploadProductsDialog() {
   }
   
   const csvTemplate = canViewCostPrice 
-    ? `name,sku,categoryId,sellingPrice,costPrice,stock,supplierLink`
-    : `name,sku,categoryId,sellingPrice,stock,supplierLink`;
+    ? `name,sku,description,categoryId,sellingPrice,costPrice,stock,supplierLink`
+    : `name,sku,description,categoryId,sellingPrice,stock,supplierLink`;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline">Bulk Upload</Button>
       </DialogTrigger>
@@ -207,10 +265,10 @@ export function BulkUploadProductsDialog() {
         <DialogHeader>
           <DialogTitle>Bulk Upload Products</DialogTitle>
           <DialogDescription>
-            Select a CSV file to upload. Please remove the 'description' column from your file before uploading. Descriptions with commas can cause issues and should be added manually after the upload.
+            Select a CSV file to upload. Fields with commas or line breaks should be wrapped in double quotes.
           </DialogDescription>
           <div className="text-xs text-muted-foreground bg-muted p-2 rounded-md font-mono">
-            Required columns: {csvTemplate}
+            Required columns: {EXPECTED_HEADERS.filter(h => h !== 'costPrice' && h !== 'description' && h !== 'supplierLink').join(', ')}
           </div>
         </DialogHeader>
         <Form {...form}>
@@ -218,17 +276,17 @@ export function BulkUploadProductsDialog() {
              <FormField
                 control={form.control}
                 name="csvFile"
-                render={({ field: { onChange, onBlur, name, ref } }) => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>CSV File</FormLabel>
                     <FormControl>
                       <Input
                         type="file"
                         accept=".csv"
-                        ref={ref}
-                        name={name}
-                        onBlur={onBlur}
-                        onChange={(e) => onChange(e.target.files)}
+                        onChange={(e) => field.onChange(e.target.files)}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
                       />
                     </FormControl>
                     <FormMessage />
@@ -236,7 +294,7 @@ export function BulkUploadProductsDialog() {
                 )}
               />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isUploading}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isUploading}>Cancel</Button>
               <Button type="submit" disabled={isUploading}>
                 {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Upload Products
