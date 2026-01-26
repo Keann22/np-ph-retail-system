@@ -1,0 +1,739 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user within the RetailFlow system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the user, used for login."
+        },
+        "roleId": {
+          "type": "string",
+          "description": "Reference to the Role. (Relationship: Role 1:N User)"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user.",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The phone number of the user."
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "roleId",
+        "firstName",
+        "lastName",
+        "email"
+      ]
+    },
+    "Role": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Role",
+      "type": "object",
+      "description": "Represents a role within the RetailFlow system, defining access permissions.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the role entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the role (e.g., Owner, Admin, Warehouse Manager, Sales)."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the role and its associated permissions."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Product",
+      "type": "object",
+      "description": "Represents a product in the retail catalog.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the product entity."
+        },
+        "sku": {
+          "type": "string",
+          "description": "Stock Keeping Unit; a unique identifier for the product."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the product."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the product."
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to the Category. (Relationship: Category 1:N Product)"
+        },
+        "supplierLink": {
+          "type": "string",
+          "description": "Link to the product on the supplier's website.",
+          "format": "uri"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL of the product image.",
+          "format": "uri"
+        },
+        "costPrice": {
+          "type": "number",
+          "description": "The cost price of the product."
+        },
+        "sellingPrice": {
+          "type": "number",
+          "description": "The selling price of the product."
+        }
+      },
+      "required": [
+        "id",
+        "sku",
+        "name",
+        "description",
+        "categoryId",
+        "supplierLink",
+        "imageUrl",
+        "costPrice",
+        "sellingPrice"
+      ]
+    },
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a product category.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the category entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the product category."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the product category."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "InventoryMovement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "InventoryMovement",
+      "type": "object",
+      "description": "Represents a single inventory movement event.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the inventory movement event."
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to the Product. (Relationship: Product 1:N InventoryMovement)"
+        },
+        "quantityChange": {
+          "type": "number",
+          "description": "The change in quantity of the product."
+        },
+        "movementType": {
+          "type": "string",
+          "description": "The type of inventory movement (e.g., sale, return, purchase, adjustment)."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp of the inventory movement event.",
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for the inventory movement."
+        }
+      },
+      "required": [
+        "id",
+        "productId",
+        "quantityChange",
+        "movementType",
+        "timestamp"
+      ]
+    },
+    "Customer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Customer",
+      "type": "object",
+      "description": "Represents a customer in the RetailFlow system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the customer entity."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the customer."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the customer."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the customer.",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The phone number of the customer."
+        },
+        "facebookProfileLink": {
+          "type": "string",
+          "description": "Link to the customer's Facebook profile.",
+          "format": "uri"
+        },
+        "shippingAddresses": {
+          "type": "array",
+          "description": "Shipping addresses associated with the customer",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email"
+      ]
+    },
+    "Order": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Order",
+      "type": "object",
+      "description": "Represents a customer order.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order entity."
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Reference to the Customer. (Relationship: Customer 1:N Order)"
+        },
+        "orderDate": {
+          "type": "string",
+          "description": "The date the order was placed.",
+          "format": "date-time"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "The total amount of the order."
+        },
+        "amountPaid": {
+          "type": "number",
+          "description": "The amount paid by the customer."
+        },
+        "balanceDue": {
+          "type": "number",
+          "description": "The remaining balance due on the order."
+        },
+        "orderStatus": {
+          "type": "string",
+          "description": "The status of the order (e.g., Pending Payment, Processing, Shipped, Completed)."
+        },
+        "paymentType": {
+          "type": "string",
+          "description": "The type of payment used for the order (e.g., Full Payment, Lay-away, Installment)."
+        },
+        "shippingDetails": {
+          "type": "string",
+          "description": "Details about the shipping (courier, tracking number)"
+        },
+        "platformFees": {
+          "type": "number",
+          "description": "Fees charged by the platform (e.g. Shopee percentage)"
+        }
+      },
+      "required": [
+        "id",
+        "customerId",
+        "orderDate",
+        "totalAmount",
+        "amountPaid",
+        "balanceDue",
+        "orderStatus",
+        "paymentType"
+      ]
+    },
+    "OrderItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OrderItem",
+      "type": "object",
+      "description": "Represents a single item within an order.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order item entity."
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Reference to the Order. (Relationship: Order 1:N OrderItem)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to the Product. (Relationship: Product 1:N OrderItem)"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "The quantity of the product in the order item."
+        },
+        "costPriceAtSale": {
+          "type": "number",
+          "description": "The cost price of the product at the time of the sale."
+        },
+        "sellingPriceAtSale": {
+          "type": "number",
+          "description": "The selling price of the product at the time of the sale."
+        }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "productId",
+        "quantity",
+        "costPriceAtSale",
+        "sellingPriceAtSale"
+      ]
+    },
+    "Payment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Payment",
+      "type": "object",
+      "description": "Represents a payment made by a customer.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the payment entity."
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Reference to the Order. (Relationship: Order 1:N Payment)"
+        },
+        "paymentDate": {
+          "type": "string",
+          "description": "The date the payment was made.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of the payment."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "The method of payment (e.g., GCash, Shopee Platform Payouts, Cash, Bank Transfer)."
+        }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "paymentDate",
+        "amount",
+        "paymentMethod"
+      ]
+    },
+    "Expense": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Expense",
+      "type": "object",
+      "description": "Represents an operational business expense.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the expense entity."
+        },
+        "expenseDate": {
+          "type": "string",
+          "description": "The date the expense was incurred.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of the expense."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the expense (e.g., rent, utilities, salaries, marketing)."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the expense."
+        }
+      },
+      "required": [
+        "id",
+        "expenseDate",
+        "amount",
+        "category"
+      ]
+    },
+    "Return": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Return",
+      "type": "object",
+      "description": "Represents a customer return.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the return entity."
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Reference to the Order. (Relationship: Order 1:N Return)"
+        },
+        "returnDate": {
+          "type": "string",
+          "description": "The date the item was returned.",
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason for the return."
+        },
+        "itemCondition": {
+          "type": "string",
+          "description": "The condition of the returned item."
+        },
+        "resolution": {
+          "type": "string",
+          "description": "The resolution of the return (e.g., restock, resend, discard)."
+        },
+        "refundId": {
+          "type": "string",
+          "description": "Reference to the Refund. (Relationship: Refund 1:1 Return)"
+        }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "returnDate",
+        "reason",
+        "itemCondition",
+        "resolution"
+      ]
+    },
+    "Refund": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Refund",
+      "type": "object",
+      "description": "Represents a refund issued to a customer.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the refund entity."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of the refund."
+        },
+        "refundDate": {
+          "type": "string",
+          "description": "The date the refund was issued.",
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason for the refund."
+        }
+      },
+      "required": [
+        "id",
+        "amount",
+        "refundDate",
+        "reason"
+      ]
+    },
+    "BadDebt": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BadDebt",
+      "type": "object",
+      "description": "Represents an order written off as bad debt.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the bad debt entity."
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Reference to the Order. (Relationship: Order 1:1 BadDebt)"
+        },
+        "writeOffDate": {
+          "type": "string",
+          "description": "The date the order was written off as bad debt.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of the bad debt."
+        }
+      },
+      "required": [
+        "id",
+        "orderId",
+        "writeOffDate",
+        "amount"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/roles/{roleId}",
+        "definition": {
+          "entityName": "Role",
+          "schema": {
+            "$ref": "#/backend/entities/Role"
+          },
+          "description": "Stores role information. Used for global role-based access control (DBAC). Existence of a document determines role membership.",
+          "params": [
+            {
+              "name": "roleId",
+              "description": "The unique identifier of the role (e.g., 'owner', 'admin')."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles.  The `userId` parameter is used to enforce ownership-based access control.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, corresponding to their Firebase Auth UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/products/{productId}",
+        "definition": {
+          "entityName": "Product",
+          "schema": {
+            "$ref": "#/backend/entities/Product"
+          },
+          "description": "Stores product information. Accessible to users with appropriate roles (e.g., Admin, Warehouse Manager).",
+          "params": [
+            {
+              "name": "productId",
+              "description": "The unique identifier of the product."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores product categories.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "The unique identifier of the category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/inventoryMovements/{inventoryMovementId}",
+        "definition": {
+          "entityName": "InventoryMovement",
+          "schema": {
+            "$ref": "#/backend/entities/InventoryMovement"
+          },
+          "description": "Logs all inventory movement events. Accessible to users with appropriate roles (e.g., Admin, Warehouse Manager).",
+          "params": [
+            {
+              "name": "inventoryMovementId",
+              "description": "The unique identifier of the inventory movement event."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/customers/{customerId}",
+        "definition": {
+          "entityName": "Customer",
+          "schema": {
+            "$ref": "#/backend/entities/Customer"
+          },
+          "description": "Stores customer information. Accessible to sales and admin roles.",
+          "params": [
+            {
+              "name": "customerId",
+              "description": "The unique identifier of the customer."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/orders/{orderId}",
+        "definition": {
+          "entityName": "Order",
+          "schema": {
+            "$ref": "#/backend/entities/Order"
+          },
+          "description": "Stores order information.  Accessible to sales and admin roles.",
+          "params": [
+            {
+              "name": "orderId",
+              "description": "The unique identifier of the order."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/orderItems/{orderItemId}",
+        "definition": {
+          "entityName": "OrderItem",
+          "schema": {
+            "$ref": "#/backend/entities/OrderItem"
+          },
+          "description": "Stores individual items within an order. Accessible to sales and admin roles.",
+          "params": [
+            {
+              "name": "orderItemId",
+              "description": "The unique identifier of the order item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/payments/{paymentId}",
+        "definition": {
+          "entityName": "Payment",
+          "schema": {
+            "$ref": "#/backend/entities/Payment"
+          },
+          "description": "Stores payment information. Accessible to sales and admin roles.",
+          "params": [
+            {
+              "name": "paymentId",
+              "description": "The unique identifier of the payment."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/expenses/{expenseId}",
+        "definition": {
+          "entityName": "Expense",
+          "schema": {
+            "$ref": "#/backend/entities/Expense"
+          },
+          "description": "Stores expense information. Accessible to owner and admin roles.",
+          "params": [
+            {
+              "name": "expenseId",
+              "description": "The unique identifier of the expense."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/returns/{returnId}",
+        "definition": {
+          "entityName": "Return",
+          "schema": {
+            "$ref": "#/backend/entities/Return"
+          },
+          "description": "Stores return information. Accessible to sales and admin roles.",
+          "params": [
+            {
+              "name": "returnId",
+              "description": "The unique identifier of the return."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/refunds/{refundId}",
+        "definition": {
+          "entityName": "Refund",
+          "schema": {
+            "$ref": "#/backend/entities/Refund"
+          },
+          "description": "Stores refund information. Accessible to sales and admin roles.",
+          "params": [
+            {
+              "name": "refundId",
+              "description": "The unique identifier of the refund."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/badDebts/{badDebtId}",
+        "definition": {
+          "entityName": "BadDebt",
+          "schema": {
+            "$ref": "#/backend/entities/BadDebt"
+          },
+          "description": "Stores bad debt information. Accessible to owner and admin roles.",
+          "params": [
+            {
+              "name": "badDebtId",
+              "description": "The unique identifier of the bad debt entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to provide a secure, scalable, and debuggable solution for the RetailFlow application, adhering to the core design principles and strategy mandates.  Authorization Independence is achieved via denormalization.  Specifically, the `members` map within collaborative data structures (like `products`) denormalizes user roles.  This eliminates the need for `get()` calls in security rules, enabling atomic operations (transactions/batches). This is crucial for maintaining data consistency and simplifying security rule logic. Structural Segregation (Homogeneous Security Posture) is enforced by creating separate collections for entities with distinct access requirements.  For example, user-owned data is segregated under `/users/{userId}`, collaborative data resides at the root level (e.g., `/products`), and global roles are managed via dedicated collections (`/roles`).  This ensures that all documents within a collection share the same security rules.  Access Modeling is consistently applied using path-based ownership for user-owned data (e.g., `/users/{userId}/orders/{orderId}`) and membership maps for collaborative data.  This standardization simplifies security rule creation and maintenance.  The structure supports the required QAPs (Rules are not Filters) by using segregation. Only authorized data can be read given that the user has the role inside the Role collection, enforcing secure list operations."
+  }
+}

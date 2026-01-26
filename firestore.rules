@@ -1,0 +1,308 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * Core Philosophy: This ruleset implements a strict Role-Based Access Control (RBAC) model
+     * for a retail management application. A special "Owner" account, identified by the email
+     * 'Keneth@owner.com', has universal god-mode access to all data. For all other users,
+     * access is determined by a `roleId` stored on their user profile document in the `/users`
+     * collection. This role dictates their permissions for viewing and modifying business-related
+     * data collections like products, orders, and customers.
+     *
+     * Data Structure: The data is organized into a flat hierarchy of top-level collections
+     * (e.g., /products, /orders, /customers). User-specific profile data is stored under
+     * `/users/{userId}`, where the document ID matches the user's Firebase Authentication UID.
+     *
+     * Key Security Decisions:
+     * - A hardcoded super-admin ('Owner') is implemented as per user requirements for full administrative control.
+     * - All other data access relies on checking the authenticated user's profile document (`/users/{userId}`) to retrieve their role.
+     * - User listing is explicitly disallowed to protect user privacy and prevent data scraping.
+     * - Users can create their own profile document upon signup but cannot modify their own role; role management is reserved for Admins and the Owner.
+     *
+     * Denormalization for Authorization: The primary authorization strategy relies on a `get()` call
+     * within the rules to fetch the user's role from `/users/{request.auth.uid}`. This centralized
+     * approach is used because roles are not denormalized onto every business document. While this
+     * adds a read operation to each request, it simplifies role management significantly.
+     *
+     * Structural Segregation: Each data entity (Products, Orders, Customers, etc.) is stored in its
+     * own top-level collection. This ensures that a single, consistent set of security rules applies
+     * to all documents of the same type, making the rules easier to understand and manage.
+     */
+
+    // --------------------------------------------------------------------------
+    // Helper Functions
+    // --------------------------------------------------------------------------
+
+    /**
+     * Checks if a user is authenticated via Firebase Auth.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the authenticated user is the special Owner account.
+     * This grants god-mode access across the entire database.
+     */
+    function isOwnerAccount() {
+      return isSignedIn() && request.auth.token.email == 'Keneth@owner.com';
+    }
+
+    /**
+     * Checks if the document's ID matches the authenticated user's UID.
+     * Used to verify ownership of a user-specific document.
+     * @param userId The UID from the document path.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Verifies that a document already exists.
+     * CRITICAL for all update and delete operations to prevent acting on non-existent data.
+     */
+    function isExistingDoc() {
+      return resource != null;
+    }
+
+    /**
+     * Retrieves the authenticated user's profile document.
+     * Caches the result of the get() call for the duration of the rule evaluation.
+     */
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    /**
+     * Gets the role ID from the authenticated user's profile data.
+     * Returns null if the user profile doesn't exist or has no roleId.
+     */
+    function userRole() {
+      return getUserData().data.roleId;
+    }
+
+    /**
+     * Checks if the authenticated user's role is in the provided list.
+     * This is the core function for RBAC.
+     * @param allowedRoles A list of role name strings.
+     */
+    function hasAnyRole(allowedRoles) {
+      return isSignedIn() && getUserData().exists && (userRole() in allowedRoles);
+    }
+
+    /**
+     * Checks if a user has a role with administrative privileges.
+     */
+    function isAdminOrOwner() {
+      return isOwnerAccount() || hasAnyRole(['admin', 'owner']);
+    }
+    
+    /**
+     * Checks if a user has a role related to sales or administration.
+     */
+    function isSalesAdminOrOwner() {
+      return isOwnerAccount() || hasAnyRole(['sales', 'admin', 'owner']);
+    }
+
+    /**
+     * Checks if a user has a role related to warehouse management or administration.
+     */
+    function isWarehouseAdminOrOwner() {
+      return isOwnerAccount() || hasAnyRole(['warehouse_manager', 'admin', 'owner']);
+    }
+
+    /**
+     * Validates that the user is creating their own user profile document.
+     * Ensures the document's internal `id` field matches the user's auth UID.
+     */
+    function isCreatingOwnUserDoc(userId) {
+      return isOwner(userId) && request.resource.data.id == userId;
+    }
+
+    /**
+     * Validates that a user is updating their own profile while preserving immutable fields.
+     * A user cannot change their own `id` or `roleId`.
+     */
+    function isUpdatingOwnProfileData(userId) {
+      return isOwner(userId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.roleId == resource.data.roleId;
+    }
+
+    // --------------------------------------------------------------------------
+    // Collection Rules
+    // --------------------------------------------------------------------------
+
+    /**
+     * @description Manages user profile documents.
+     * @path /users/{userId}
+     * @allow (create) An authenticated user creating their own profile document.
+     * @deny (list) Any user attempting to list all user profiles.
+     * @principle Restricts access to a user's own data tree and allows self-creation.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdminOrOwner();
+      allow list: if false;
+      allow create: if isCreatingOwnUserDoc(userId);
+      allow update: if isExistingDoc() && (isAdminOrOwner() || isUpdatingOwnProfileData(userId));
+      allow delete: if isExistingDoc() && isAdminOrOwner(); // Only admins can delete users
+    }
+
+    /**
+     * @description Manages role definitions for the application.
+     * @path /roles/{roleId}
+     * @allow (get) Any signed-in user reading the list of available roles.
+     * @deny (create) A non-admin user trying to create a new role.
+     * @principle Enforces administrative control over application-wide settings.
+     */
+    match /roles/{roleId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isExistingDoc() && isAdminOrOwner();
+    }
+
+    /**
+     * @description Manages product catalog information.
+     * @path /products/{productId}
+     * @allow (get, list) A user with a 'sales', 'warehouse_manager', or 'admin' role viewing products.
+     * @deny (create, update) A 'sales' user attempting to modify product data.
+     * @principle Enforces Role-Based Access Control (RBAC) for business data.
+     */
+    match /products/{productId} {
+      allow get, list: if isSalesAdminOrOwner() || isWarehouseAdminOrOwner();
+      allow create: if isWarehouseAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isWarehouseAdminOrOwner();
+    }
+
+    /**
+     * @description Manages product category information.
+     * @path /categories/{categoryId}
+     * @allow (get, list) Any user with a business role viewing categories.
+     * @deny (create) A 'sales' user attempting to create a new category.
+     * @principle Enforces Role-Based Access Control (RBAC) for business data.
+     */
+    match /categories/{categoryId} {
+      allow get, list: if isSalesAdminOrOwner() || isWarehouseAdminOrOwner();
+      allow create: if isWarehouseAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isWarehouseAdminOrOwner();
+    }
+
+    /**
+     * @description Manages inventory movement logs.
+     * @path /inventoryMovements/{inventoryMovementId}
+     * @allow (create) A user with a 'warehouse_manager' role logging a new stock movement.
+     * @deny (create) A 'sales' user trying to modify inventory records.
+     * @principle Enforces strict RBAC for sensitive operational data.
+     */
+    match /inventoryMovements/{inventoryMovementId} {
+      allow get, list: if isWarehouseAdminOrOwner();
+      allow create: if isWarehouseAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isWarehouseAdminOrOwner();
+    }
+
+    /**
+     * @description Manages customer profiles and information.
+     * @path /customers/{customerId}
+     * @allow (create) A 'sales' or 'admin' user creating a new customer profile.
+     * @deny (get) A 'warehouse_manager' attempting to view customer data.
+     * @principle Enforces RBAC to segregate access between different business functions.
+     */
+    match /customers/{customerId} {
+      allow get, list: if isSalesAdminOrOwner();
+      allow create: if isSalesAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isSalesAdminOrOwner();
+    }
+    
+    /**
+     * @description Manages customer orders.
+     * @path /orders/{orderId}
+     * @allow (update) A 'sales' user updating the status of an existing order.
+     * @deny (delete) A 'warehouse_manager' attempting to delete an order.
+     * @principle Enforces RBAC for core business transaction data.
+     */
+    match /orders/{orderId} {
+      allow get, list: if isSalesAdminOrOwner();
+      allow create: if isSalesAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isSalesAdminOrOwner();
+    }
+    
+    /**
+     * @description Manages items within a customer order.
+     * @path /orderItems/{orderItemId}
+     * @allow (create) A 'sales' user adding an item to a new order.
+     * @deny (get) A user without a sales or admin role viewing order contents.
+     * @principle Enforces RBAC for core business transaction data.
+     */
+    match /orderItems/{orderItemId} {
+      allow get, list: if isSalesAdminOrOwner();
+      allow create: if isSalesAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isSalesAdminOrOwner();
+    }
+    
+    /**
+     * @description Manages payments associated with orders.
+     * @path /payments/{paymentId}
+     * @allow (create) A 'sales' or 'admin' user recording a payment for an order.
+     * @deny (get) A 'warehouse_manager' attempting to view financial payment data.
+     * @principle Enforces RBAC for sensitive financial data.
+     */
+    match /payments/{paymentId} {
+      allow get, list: if isSalesAdminOrOwner();
+      allow create: if isSalesAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isSalesAdminOrOwner();
+    }
+
+    /**
+     * @description Manages business expenses.
+     * @path /expenses/{expenseId}
+     * @allow (get, list, create) An 'admin' or 'owner' user managing company expenses.
+     * @deny (get) A 'sales' or 'warehouse_manager' user trying to view expense records.
+     * @principle Restricts access to highly sensitive financial data to administrative roles.
+     */
+    match /expenses/{expenseId} {
+      allow get, list: if isAdminOrOwner();
+      allow create: if isAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isAdminOrOwner();
+    }
+    
+    /**
+     * @description Manages customer returns.
+     * @path /returns/{returnId}
+     * @allow (create) A 'sales' user processing a customer return.
+     * @deny (get) A 'warehouse_manager' user viewing return details.
+     * @principle Enforces RBAC for core business transaction data.
+     */
+    match /returns/{returnId} {
+      allow get, list: if isSalesAdminOrOwner();
+      allow create: if isSalesAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isSalesAdminOrOwner();
+    }
+
+    /**
+     * @description Manages refunds issued to customers.
+     * @path /refunds/{refundId}
+     * @allow (create) A 'sales' or 'admin' user issuing a refund.
+     * @deny (get) A user without a sales or admin role viewing refund data.
+     * @principle Enforces RBAC for sensitive financial data.
+     */
+    match /refunds/{refundId} {
+      allow get, list: if isSalesAdminOrOwner();
+      allow create: if isSalesAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isSalesAdminOrOwner();
+    }
+
+    /**
+     * @description Manages orders written off as bad debt.
+     * @path /badDebts/{badDebtId}
+     * @allow (create) An 'admin' or 'owner' user writing off an unpaid order.
+     * @deny (get) Any user with a role other than 'admin' or 'owner' viewing bad debt records.
+     * @principle Restricts access to highly sensitive financial data to administrative roles.
+     */
+    match /badDebts/{badDebtId} {
+      allow get, list: if isAdminOrOwner();
+      allow create: if isAdminOrOwner();
+      allow update, delete: if isExistingDoc() && isAdminOrOwner();
+    }
+  }
+}
