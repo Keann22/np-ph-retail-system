@@ -37,11 +37,12 @@ import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddOrderDialog } from '@/components/dashboard/add-order-dialog';
 import { format } from 'date-fns';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { LogPaymentDialog } from '@/components/dashboard/log-payment-dialog';
 
 // Matches the Firestore document structure for an order
-type Order = {
+export type Order = {
   id: string;
   customerId: string;
   orderDate: string; // ISO string
@@ -78,6 +79,7 @@ const getStatusVariant = (status: Order['orderStatus']) => {
 const statuses: Order['orderStatus'][] = ['Pending Payment', 'Processing', 'Shipped', 'Completed'];
 
 export default function OrdersPage() {
+  const [logPaymentOrder, setLogPaymentOrder] = useState<Order | null>(null);
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -121,129 +123,140 @@ export default function OrdersPage() {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="font-headline">Orders</CardTitle>
-          <CardDescription>
-            View and manage customer sales orders.
-          </CardDescription>
-        </div>
-        <AddOrderDialog />
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Customer</TableHead>
-              <TableHead className="hidden sm:table-cell">Type</TableHead>
-              <TableHead className="hidden sm:table-cell">Status</TableHead>
-              <TableHead className="hidden md:table-cell">Date</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && Array.from({ length: 5 }).map((_, i) => (
-                 <TableRow key={i}>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell className="hidden sm:table-cell"><Skeleton className="h-6 w-28 rounded-full" /></TableCell>
-                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
-                    <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
-                 </TableRow>
-            ))}
-            {formattedOrders.map((order) => (
-              <TableRow key={order.id}>
-                <TableCell>
-                  <div className="font-medium">{order.customerName}</div>
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  {order.paymentType}
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  <Badge variant={getStatusVariant(order.orderStatus)}>
-                    {order.orderStatus}
-                  </Badge>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {order.formattedDate}
-                </TableCell>
-                <TableCell className="text-right">{order.formattedTotal}</TableCell>
-                <TableCell>
-                  <div className='flex justify-end'>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          aria-haspopup="true"
-                          size="icon"
-                          variant="ghost"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
-                        <DropdownMenuItem>Log Payment</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <span>Update Status</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            <DropdownMenuRadioGroup
-                              value={order.orderStatus}
-                              onValueChange={(newStatus) => {
-                                if (newStatus !== order.orderStatus) {
-                                  handleStatusChange(order.id, newStatus as Order['orderStatus']);
-                                }
-                              }}
-                            >
-                              {statuses.map((status) => (
-                                <DropdownMenuRadioItem key={status} value={status} disabled={order.orderStatus === status}>
-                                  {status}
-                                </DropdownMenuRadioItem>
-                              ))}
-                            </DropdownMenuRadioGroup>
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                          onClick={() => handleStatusChange(order.id, 'Cancelled')}
-                          disabled={order.orderStatus === 'Cancelled'}
-                        >
-                          Cancel Order
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </TableCell>
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="font-headline">Orders</CardTitle>
+            <CardDescription>
+              View and manage customer sales orders.
+            </CardDescription>
+          </div>
+          <AddOrderDialog />
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Customer</TableHead>
+                <TableHead className="hidden sm:table-cell">Type</TableHead>
+                <TableHead className="hidden sm:table-cell">Status</TableHead>
+                <TableHead className="hidden md:table-cell">Date</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {!isLoading && formattedOrders.length === 0 && (
-            <div className="flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg p-12 mt-4">
-                <p className="text-lg font-semibold">No orders found</p>
-                <p className="text-muted-foreground mt-2">
-                    Click "New Order" to get started.
-                </p>
-            </div>
+            </TableHeader>
+            <TableBody>
+              {isLoading && Array.from({ length: 5 }).map((_, i) => (
+                   <TableRow key={i}>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell className="hidden sm:table-cell"><Skeleton className="h-6 w-28 rounded-full" /></TableCell>
+                      <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                      <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                   </TableRow>
+              ))}
+              {formattedOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell>
+                    <div className="font-medium">{order.customerName}</div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {order.paymentType}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <Badge variant={getStatusVariant(order.orderStatus)}>
+                      {order.orderStatus}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {order.formattedDate}
+                  </TableCell>
+                  <TableCell className="text-right">{order.formattedTotal}</TableCell>
+                  <TableCell>
+                    <div className='flex justify-end'>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            aria-haspopup="true"
+                            size="icon"
+                            variant="ghost"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Toggle menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem>View Details</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setLogPaymentOrder(order)}>
+                            Log Payment
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <span>Update Status</span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuRadioGroup
+                                value={order.orderStatus}
+                                onValueChange={(newStatus) => {
+                                  if (newStatus !== order.orderStatus) {
+                                    handleStatusChange(order.id, newStatus as Order['orderStatus']);
+                                  }
+                                }}
+                              >
+                                {statuses.map((status) => (
+                                  <DropdownMenuRadioItem key={status} value={status} disabled={order.orderStatus === status}>
+                                    {status}
+                                  </DropdownMenuRadioItem>
+                                ))}
+                              </DropdownMenuRadioGroup>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            onClick={() => handleStatusChange(order.id, 'Cancelled')}
+                            disabled={order.orderStatus === 'Cancelled'}
+                          >
+                            Cancel Order
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {!isLoading && formattedOrders.length === 0 && (
+              <div className="flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg p-12 mt-4">
+                  <p className="text-lg font-semibold">No orders found</p>
+                  <p className="text-muted-foreground mt-2">
+                      Click "New Order" to get started.
+                  </p>
+              </div>
+          )}
+        </CardContent>
+         {formattedOrders.length > 0 && (
+          <CardFooter>
+              <div className="text-xs text-muted-foreground">
+              Showing <strong>1-{formattedOrders.length}</strong> of <strong>{formattedOrders.length}</strong> orders
+              </div>
+          </CardFooter>
         )}
-      </CardContent>
-       {formattedOrders.length > 0 && (
-        <CardFooter>
-            <div className="text-xs text-muted-foreground">
-            Showing <strong>1-{formattedOrders.length}</strong> of <strong>{formattedOrders.length}</strong> orders
-            </div>
-        </CardFooter>
+      </Card>
+      {logPaymentOrder && (
+        <LogPaymentDialog 
+            order={logPaymentOrder}
+            open={!!logPaymentOrder}
+            onOpenChange={(isOpen) => !isOpen && setLogPaymentOrder(null)}
+        />
       )}
-    </Card>
+    </>
   );
 }
