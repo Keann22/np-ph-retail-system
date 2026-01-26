@@ -370,7 +370,14 @@
         },
         "paymentMethod": {
           "type": "string",
-          "description": "The method of payment (e.g., GCash, Shopee Platform Payouts, Cash, Bank Transfer)."
+          "description": "The method of payment (e.g., GCash, Shopee Platform Payouts, Cash, Bank Transfer, COD Payed).",
+          "enum": [
+            "GCash",
+            "Shopee Platform Payouts",
+            "Cash",
+            "Bank Transfer",
+            "COD Payed"
+          ]
         }
       },
       "required": [

@@ -33,7 +33,7 @@ interface LogPaymentDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const paymentMethods = ["GCash", "Shopee Platform Payouts", "Cash", "Bank Transfer"];
+const paymentMethods = ["GCash", "Shopee Platform Payouts", "Cash", "Bank Transfer", "COD Payed"];
 
 export function LogPaymentDialog({ order, open, onOpenChange }: LogPaymentDialogProps) {
   const firestore = useFirestore();
@@ -102,7 +102,7 @@ export function LogPaymentDialog({ order, open, onOpenChange }: LogPaymentDialog
         <DialogHeader>
           <DialogTitle>Log Payment for Order</DialogTitle>
           <DialogDescription>
-            Record a new payment. Balance due: ₱{order.balanceDue.toFixed(2)}
+            Balance due: ₱{order.balanceDue.toFixed(2)}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
