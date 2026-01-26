@@ -24,6 +24,13 @@ export function initiateEmailSignUp(authInstance: Auth, email: string, password:
 /** Initiate email/password sign-in (non-blocking). */
 export function initiateEmailSignIn(authInstance: Auth, email: string, password: string): void {
   // CRITICAL: Call signInWithEmailAndPassword directly. Do NOT use 'await signInWithEmailAndPassword(...)'.
-  signInWithEmailAndPassword(authInstance, email, password);
+  signInWithEmailAndPassword(authInstance, email, password)
+    .catch((error) => {
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+            // If user not found or credential invalid, try to create a new user.
+            // This handles the case where the user is logging in for the first time.
+            initiateEmailSignUp(authInstance, email, password);
+        }
+    });
   // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
 }
