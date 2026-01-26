@@ -16,6 +16,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -26,12 +32,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddOrderDialog } from '@/components/dashboard/add-order-dialog';
 import { format } from 'date-fns';
 import { useMemo } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 // Matches the Firestore document structure for an order
 type Order = {
@@ -68,8 +75,11 @@ const getStatusVariant = (status: Order['orderStatus']) => {
   }
 }
 
+const statuses: Order['orderStatus'][] = ['Pending Payment', 'Processing', 'Shipped', 'Completed'];
+
 export default function OrdersPage() {
   const firestore = useFirestore();
+  const { toast } = useToast();
 
   const ordersQuery = useMemoFirebase(
     () => (firestore ? query(collection(firestore, 'orders'), orderBy('orderDate', 'desc')) : null),
@@ -99,6 +109,16 @@ export default function OrdersPage() {
       formattedTotal: `₱${order.totalAmount.toFixed(2)}`,
     }));
   }, [orders, customerMap]);
+
+  const handleStatusChange = (orderId: string, status: Order['orderStatus']) => {
+    if (!firestore) return;
+    const orderDocRef = doc(firestore, 'orders', orderId);
+    updateDocumentNonBlocking(orderDocRef, { orderStatus: status });
+    toast({
+      title: 'Order Status Updated',
+      description: `The order is now marked as "${status}".`,
+    });
+  };
 
   return (
     <Card>
@@ -170,7 +190,34 @@ export default function OrdersPage() {
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem>View Details</DropdownMenuItem>
                         <DropdownMenuItem>Log Payment</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                        <DropdownMenuSeparator />
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <span>Update Status</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuRadioGroup
+                              value={order.orderStatus}
+                              onValueChange={(newStatus) => {
+                                if (newStatus !== order.orderStatus) {
+                                  handleStatusChange(order.id, newStatus as Order['orderStatus']);
+                                }
+                              }}
+                            >
+                              {statuses.map((status) => (
+                                <DropdownMenuRadioItem key={status} value={status} disabled={order.orderStatus === status}>
+                                  {status}
+                                </DropdownMenuRadioItem>
+                              ))}
+                            </DropdownMenuRadioGroup>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                          onClick={() => handleStatusChange(order.id, 'Cancelled')}
+                          disabled={order.orderStatus === 'Cancelled'}
+                        >
                           Cancel Order
                         </DropdownMenuItem>
                       </DropdownMenuContent>
