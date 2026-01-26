@@ -82,8 +82,11 @@ export function BulkUploadProductsDialog() {
             productObj[header] = values[index]?.trim() || '';
         });
 
-        if (!productObj.name || !productObj.sku) {
-            throw new Error(`Skipping row due to missing name or SKU: ${line}`);
+        if (!productObj.name && !productObj.sku) {
+            // If both name and SKU are missing, it's likely an empty or invalid row.
+            // We'll just skip it without throwing an error to avoid halting the entire batch.
+            console.warn(`Skipping row because both name and SKU are missing: ${line}`);
+            return;
         }
 
         const stock = parseInt(productObj.stock, 10) || 0;
@@ -91,8 +94,8 @@ export function BulkUploadProductsDialog() {
         const costPrice = canViewCostPrice ? (parseFloat(productObj.costPrice) || 0) : 0;
 
         const productData = {
-            name: productObj.name,
-            sku: productObj.sku,
+            name: productObj.name || '',
+            sku: productObj.sku || '',
             description: productObj.description || '',
             categoryId: productObj.categoryId || 'Uncategorized',
             supplierLink: productObj.supplierLink || '',
@@ -173,7 +176,7 @@ export function BulkUploadProductsDialog() {
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isUploading}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isUploading}>Cancel</Button>
               <Button type="submit" disabled={isUploading}>
                 {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Upload Products
