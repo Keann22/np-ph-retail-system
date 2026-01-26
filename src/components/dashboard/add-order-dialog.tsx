@@ -15,9 +15,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Check, ChevronsUpDown, Trash2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { format } from "date-fns";
 
 const orderItemSchema = z.object({
   productId: z.string(),
@@ -45,6 +45,8 @@ type Product = { id: string; name: string; stock: number; costPrice: number; sel
 
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
+  const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
+  const [productPopoverOpen, setProductPopoverOpen] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
 
@@ -63,7 +65,7 @@ export function AddOrderDialog() {
     },
   });
 
-  // Fetch data only when the dialog opens to prevent re-renders from onSnapshot
+  // Fetch data only when the dialog opens
   useEffect(() => {
     if (open && firestore) {
       const fetchInitialData = async () => {
@@ -99,7 +101,6 @@ export function AddOrderDialog() {
   const totalAmount = form.watch('orderItems').reduce((total, item) => total + (item.sellingPriceAtSale * item.quantity), 0);
 
   useEffect(() => {
-    // If Full Payment, amount paid should equal total amount
     if (form.watch('paymentType') === 'Full Payment') {
         form.setValue('amountPaid', totalAmount);
     }
@@ -129,19 +130,9 @@ export function AddOrderDialog() {
         if(!orderRef) return;
 
         values.orderItems.forEach(item => {
-            // Add to orderItems collection
-            addDocumentNonBlocking(orderItemsCollection, {
-                ...item,
-                orderId: orderRef.id,
-            });
-
-            // Decrement product stock
+            addDocumentNonBlocking(orderItemsCollection, { ...item, orderId: orderRef.id });
             const productRef = doc(firestore, 'products', item.productId);
-            updateDocumentNonBlocking(productRef, {
-                stock: increment(-item.quantity)
-            });
-
-            // Log inventory movement
+            updateDocumentNonBlocking(productRef, { stock: increment(-item.quantity) });
             addDocumentNonBlocking(inventoryMovementsCollection, {
                 productId: item.productId,
                 quantityChange: -item.quantity,
@@ -174,7 +165,6 @@ export function AddOrderDialog() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto px-1 md:grid-cols-3 md:gap-8">
-                {/* Order Details Column */}
                 <div className="md:col-span-1 space-y-4">
                     <FormField
                     control={form.control}
@@ -182,10 +172,9 @@ export function AddOrderDialog() {
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
                         <FormLabel>Customer</FormLabel>
-                        <Popover modal={false}>
+                          <Popover modal={false} open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
                             <PopoverTrigger asChild>
-                            <FormControl>
-                                <Button
+                              <Button
                                 variant="outline"
                                 role="combobox"
                                 className={cn(
@@ -194,40 +183,27 @@ export function AddOrderDialog() {
                                 )}
                                 >
                                 {field.value
-                                    ? customers?.find(
-                                        (c) => c.id === field.value
-                                    )?.firstName + ' ' + customers?.find(
-                                        (c) => c.id === field.value
-                                    )?.lastName
+                                    ? customers.find(c => c.id === field.value)?.firstName + ' ' + customers.find(c => c.id === field.value)?.lastName
                                     : "Select customer"}
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
-                            </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent
-                                className="w-[--radix-popover-trigger-width] p-0"
-                            >
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                 <Command>
                                     <CommandInput placeholder="Search customers..." />
                                     <CommandList>
                                         <CommandEmpty>No customers found.</CommandEmpty>
                                         <CommandGroup>
-                                            {customers?.map((c) => (
+                                            {customers.map((c) => (
                                             <CommandItem
                                                 value={`${c.firstName} ${c.lastName}`}
                                                 key={c.id}
                                                 onSelect={() => {
-                                                  form.setValue("customerId", c.id)
+                                                    form.setValue("customerId", c.id)
+                                                    setCustomerPopoverOpen(false);
                                                 }}
                                             >
-                                                <Check
-                                                className={cn(
-                                                    "mr-2 h-4 w-4",
-                                                    c.id === field.value
-                                                    ? "opacity-100"
-                                                    : "opacity-0"
-                                                )}
-                                                />
+                                                <Check className={cn("mr-2 h-4 w-4", c.id === field.value ? "opacity-100" : "opacity-0")} />
                                                 {c.firstName} {c.lastName}
                                             </CommandItem>
                                             ))}
@@ -235,7 +211,7 @@ export function AddOrderDialog() {
                                     </CommandList>
                                 </Command>
                             </PopoverContent>
-                        </Popover>
+                          </Popover>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -246,32 +222,20 @@ export function AddOrderDialog() {
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
                             <FormLabel>Order Date</FormLabel>
-                            <Popover modal={false}>
+                            <Popover>
                                 <PopoverTrigger asChild>
                                 <FormControl>
                                     <Button
                                     variant={"outline"}
-                                    className={cn(
-                                        "w-full pl-3 text-left font-normal",
-                                        !field.value && "text-muted-foreground"
-                                    )}
+                                    className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
                                     >
-                                    {field.value ? (
-                                        format(field.value, "PPP")
-                                    ) : (
-                                        <span>Pick a date</span>
-                                    )}
+                                    {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
                                     <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                     </Button>
                                 </FormControl>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                    mode="single"
-                                    selected={field.value}
-                                    onSelect={field.onChange}
-                                    initialFocus
-                                />
+                                <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                                 </PopoverContent>
                             </Popover>
                             <FormMessage />
@@ -285,34 +249,18 @@ export function AddOrderDialog() {
                         <FormItem className="space-y-3">
                           <FormLabel>Payment Type</FormLabel>
                           <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              className="flex flex-col space-y-1"
-                            >
+                            <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col space-y-1">
                               <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="Full Payment" />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                  Full Payment
-                                </FormLabel>
+                                <FormControl><RadioGroupItem value="Full Payment" /></FormControl>
+                                <FormLabel className="font-normal">Full Payment</FormLabel>
                               </FormItem>
                               <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="Lay-away" />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                  Lay-away (Hulugan)
-                                </FormLabel>
+                                <FormControl><RadioGroupItem value="Lay-away" /></FormControl>
+                                <FormLabel className="font-normal">Lay-away (Hulugan)</FormLabel>
                               </FormItem>
                               <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="Installment" />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                  Installment
-                                </FormLabel>
+                                <FormControl><RadioGroupItem value="Installment" /></FormControl>
+                                <FormLabel className="font-normal">Installment</FormLabel>
                               </FormItem>
                             </RadioGroup>
                           </FormControl>
@@ -327,9 +275,7 @@ export function AddOrderDialog() {
                             render={({ field }) => (
                                 <FormItem>
                                 <FormLabel>Downpayment (₱)</FormLabel>
-                                <FormControl>
-                                    <Input type="number" step="0.01" placeholder="0.00" {...field} />
-                                </FormControl>
+                                <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl>
                                 <FormMessage />
                                 </FormItem>
                             )}
@@ -337,7 +283,6 @@ export function AddOrderDialog() {
                     )}
                 </div>
 
-                {/* Order Items Column */}
                 <div className="md:col-span-2 space-y-4">
                     <div>
                         <FormLabel>Order Items</FormLabel>
@@ -345,93 +290,56 @@ export function AddOrderDialog() {
                            {fields.map((field, index) => (
                              <div key={field.id} className="flex gap-2 items-end p-2 rounded-md bg-muted/50">
                                 <p className="flex-1 text-sm font-medium">{field.productName}</p>
-                                <FormField
-                                    control={form.control}
-                                    name={`orderItems.${index}.quantity`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormControl>
-                                                <Input type="number" className="h-8 w-20" {...field} />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name={`orderItems.${index}.sellingPriceAtSale`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                             <FormControl>
-                                                <Input type="number" step="0.01" className="h-8 w-24" {...field} />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => remove(index)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <FormField control={form.control} name={`orderItems.${index}.quantity`} render={({ field }) => (<FormItem><FormControl><Input type="number" className="h-8 w-20" {...field} /></FormControl></FormItem>)} />
+                                <FormField control={form.control} name={`orderItems.${index}.sellingPriceAtSale`} render={({ field }) => (<FormItem><FormControl><Input type="number" step="0.01" className="h-8 w-24" {...field} /></FormControl></FormItem>)} />
+                                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                              </div>
                            ))}
-                           {fields.length === 0 && (
-                             <p className="text-sm text-center text-muted-foreground py-4">No items added to order.</p>
-                           )}
+                           {fields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No items added to order.</p>}
                         </div>
                         <FormMessage>{form.formState.errors.orderItems?.message}</FormMessage>
                     </div>
 
-                    <Popover modal={false}>
-                        <PopoverTrigger asChild>
-                        <Button
-                            variant="outline"
-                            role="combobox"
-                            className="w-full justify-start"
-                            >
-                            Add product...
-                        </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                            className="w-[--radix-popover-trigger-width] p-0"
-                        >
-                            <Command>
-                                <CommandInput placeholder="Search products..." />
-                                <CommandList>
-                                    <CommandEmpty>No products found.</CommandEmpty>
-                                    <CommandGroup>
-                                        {products?.map((p) => (
-                                        <CommandItem
-                                            value={p.name}
-                                            key={p.id}
-                                            onSelect={() => {
-                                                const productToAdd = products.find(prod => prod.id === p.id);
-                                                if (productToAdd) {
-                                                    append({
-                                                        productId: productToAdd.id,
-                                                        productName: productToAdd.name,
-                                                        quantity: 1,
-                                                        costPriceAtSale: productToAdd.costPrice,
-                                                        sellingPriceAtSale: productToAdd.sellingPrice,
-                                                    });
-                                                }
-                                            }}
-                                        >
-                                            {p.name}
-                                        </CommandItem>
-                                        ))}
-                                    </CommandGroup>
-                                </CommandList>
-                            </Command>
-                        </PopoverContent>
+                    <Popover modal={false} open={productPopoverOpen} onOpenChange={setProductPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start">Add product...</Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command>
+                            <CommandInput placeholder="Search products..." />
+                            <CommandList>
+                                <CommandEmpty>No products found.</CommandEmpty>
+                                <CommandGroup>
+                                    {products.map((p) => (
+                                    <CommandItem
+                                        value={p.name}
+                                        key={p.id}
+                                        onSelect={() => {
+                                            const productToAdd = products.find(prod => prod.id === p.id);
+                                            if (productToAdd) {
+                                                append({
+                                                    productId: productToAdd.id,
+                                                    productName: productToAdd.name,
+                                                    quantity: 1,
+                                                    costPriceAtSale: productToAdd.costPrice,
+                                                    sellingPriceAtSale: productToAdd.sellingPrice,
+                                                });
+                                            }
+                                            setProductPopoverOpen(false);
+                                        }}
+                                    >
+                                        {p.name}
+                                    </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                            </CommandList>
+                        </Command>
+                      </PopoverContent>
                     </Popover>
                     
                     <div className="pt-4 space-y-2">
-                        <div className="flex justify-between">
-                            <p className="text-muted-foreground">Subtotal</p>
-                            <p>₱{totalAmount.toFixed(2)}</p>
-                        </div>
-                         <div className="flex justify-between font-bold text-lg">
-                            <p>Total</p>
-                            <p>₱{totalAmount.toFixed(2)}</p>
-                        </div>
+                        <div className="flex justify-between"><p className="text-muted-foreground">Subtotal</p><p>₱{totalAmount.toFixed(2)}</p></div>
+                        <div className="flex justify-between font-bold text-lg"><p>Total</p><p>₱{totalAmount.toFixed(2)}</p></div>
                     </div>
                 </div>
             </div>
