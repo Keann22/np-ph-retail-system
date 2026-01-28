@@ -44,13 +44,13 @@ export default function DashboardLayout({
 
   const pendingOrdersQuery = useMemoFirebase(
     () =>
-      firestore
+      firestore && user
         ? query(
             collection(firestore, 'orders'),
             where('orderStatus', 'in', ['Pending Payment', 'Processing'])
           )
         : null,
-    [firestore]
+    [firestore, user]
   );
   const { data: pendingOrders } = useCollection(pendingOrdersQuery);
   const pendingOrdersCount = pendingOrders?.length;
