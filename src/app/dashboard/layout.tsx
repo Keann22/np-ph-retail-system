@@ -25,19 +25,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Logo } from '@/components/logo';
-import { useAuth, useUser } from '@/firebase';
+import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-
-const navLinks = [
-  { href: '/dashboard', label: 'Dashboard', icon: Home, badge: null },
-  { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, badge: 6 },
-  { href: '/dashboard/products', label: 'Products', icon: Package, badge: null },
-  { href: '/dashboard/customers', label: 'Customers', icon: Users, badge: null },
-  { href: '/dashboard/users', label: 'User Management', icon: Users, badge: null },
-  { href: '/dashboard/reports', label: 'Reports', icon: LineChart, badge: null },
-];
+import { collection, query, where } from 'firebase/firestore';
 
 export default function DashboardLayout({
   children,
@@ -48,6 +40,29 @@ export default function DashboardLayout({
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
+  const firestore = useFirestore();
+
+  const pendingOrdersQuery = useMemoFirebase(
+    () =>
+      firestore
+        ? query(
+            collection(firestore, 'orders'),
+            where('orderStatus', 'in', ['Pending Payment', 'Processing'])
+          )
+        : null,
+    [firestore]
+  );
+  const { data: pendingOrders } = useCollection(pendingOrdersQuery);
+  const pendingOrdersCount = pendingOrders?.length;
+
+  const navLinks = [
+    { href: '/dashboard', label: 'Dashboard', icon: Home, badge: null },
+    { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, badge: pendingOrdersCount && pendingOrdersCount > 0 ? pendingOrdersCount : null },
+    { href: '/dashboard/products', label: 'Products', icon: Package, badge: null },
+    { href: '/dashboard/customers', label: 'Customers', icon: Users, badge: null },
+    { href: '/dashboard/users', label: 'User Management', icon: Users, badge: null },
+    { href: '/dashboard/reports', label: 'Reports', icon: LineChart, badge: null },
+  ];
 
   useEffect(() => {
     if (!isUserLoading && !user) {
