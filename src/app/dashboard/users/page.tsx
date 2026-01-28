@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { deleteDocumentNonBlocking, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { deleteDocumentNonBlocking, useCollection, useFirestore, useMemoFirebase, useAuth, initiatePasswordReset } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -58,6 +58,7 @@ export type UserProfile = {
 
 export default function UsersPage() {
   const firestore = useFirestore();
+  const auth = useAuth();
   const { userProfile: currentUserProfile } = useUserProfile();
   const [editingRolesUser, setEditingRolesUser] = useState<UserProfile | null>(null);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -71,6 +72,10 @@ export default function UsersPage() {
   const { data: users, isLoading } = useCollection<UserProfile>(usersQuery);
   
   const canManageUsers = currentUserProfile && (currentUserProfile.roles.includes('Owner') || currentUserProfile.roles.includes('Admin'));
+
+  const handlePasswordReset = (email: string) => {
+    initiatePasswordReset(auth, email);
+  };
 
   const confirmDelete = () => {
     if (!deletingUser || !firestore) return;
@@ -173,6 +178,10 @@ export default function UsersPage() {
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => setEditingUser(user)}>Edit User</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setEditingRolesUser(user)}>Edit Roles</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handlePasswordReset(user.email)}>
+                            Send Password Reset
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive focus:bg-destructive/10"
