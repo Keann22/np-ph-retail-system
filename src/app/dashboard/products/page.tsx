@@ -27,8 +27,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { deleteDocumentNonBlocking, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { useCollection, useFirestore, useMemoFirebase, useStorage } from '@/firebase';
+import { collection, doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { deleteObject, ref as storageRef } from 'firebase/storage';
 import { AddProductDialog } from '@/components/dashboard/add-product-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BulkUploadProductsDialog } from '@/components/dashboard/bulk-upload-products-dialog';
@@ -78,6 +79,7 @@ const getStatus = (stock: number): { text: 'In Stock' | 'Low Stock' | 'Out of St
 
 export default function ProductsPage() {
   const firestore = useFirestore();
+  const storage = useStorage();
   const [deletingProduct, setDeletingProduct] = useState<FormattedProduct | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -107,35 +109,99 @@ export default function ProductsPage() {
   const endIndex = formattedProducts ? Math.min(currentPage * itemsPerPage, formattedProducts.length) : 0;
 
 
-  const handleDeleteConfirm = () => {
-    if (!deletingProduct || !firestore) return;
+  const handleDeleteConfirm = async () => {
+    if (!deletingProduct || !firestore || !storage) return;
 
-    const productDocRef = doc(firestore, 'products', deletingProduct.id);
-    deleteDocumentNonBlocking(productDocRef);
+    const productToDelete = deletingProduct;
+    setDeletingProduct(null);
 
     toast({
-      title: "Product Deleted",
-      description: `"${deletingProduct.name}" has been removed from your catalog.`,
+      title: "Deleting Product...",
+      description: `"${productToDelete.name}" is being removed.`,
     });
 
-    setDeletingProduct(null);
+    try {
+        // Delete images from Storage
+        if (productToDelete.images && productToDelete.images.length > 0) {
+            const deletePromises = productToDelete.images.map(imageUrl => {
+                // Don't delete placeholder images from placehold.co
+                if (imageUrl.includes('placehold.co')) {
+                    return Promise.resolve();
+                }
+                const imageFileRef = storageRef(storage, imageUrl);
+                return deleteObject(imageFileRef);
+            });
+            await Promise.all(deletePromises);
+        }
+
+        // Delete Firestore document
+        const productDocRef = doc(firestore, 'products', productToDelete.id);
+        await deleteDoc(productDocRef);
+
+        toast({
+          title: "Product Deleted",
+          description: `"${productToDelete.name}" has been removed from your catalog.`,
+        });
+    } catch (error) {
+        console.error("Error deleting product:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Deletion Failed',
+            description: `Could not delete "${productToDelete.name}".`
+        });
+    }
   }
 
-  const handleBulkDeleteConfirm = () => {
-    if (!firestore || selectedProductIds.length === 0) return;
+  const handleBulkDeleteConfirm = async () => {
+    if (!firestore || !storage || selectedProductIds.length === 0) return;
 
-    selectedProductIds.forEach(productId => {
-        const productDocRef = doc(firestore, 'products', productId);
-        deleteDocumentNonBlocking(productDocRef);
-    });
+    const idsToDelete = [...selectedProductIds];
+    setShowBulkDeleteConfirm(false);
+    setSelectedProductIds([]); // Clear selection
 
     toast({
       title: "Bulk Deletion Initiated",
-      description: `${selectedProductIds.length} products have been queued for deletion.`,
+      description: `${idsToDelete.length} products are being queued for deletion.`,
     });
 
-    setShowBulkDeleteConfirm(false);
-    setSelectedProductIds([]); // Clear selection
+    const results = await Promise.allSettled(idsToDelete.map(async (productId) => {
+        const productDocRef = doc(firestore, 'products', productId);
+        const docSnap = await getDoc(productDocRef);
+
+        if (docSnap.exists()) {
+            const productData = docSnap.data() as Product;
+            // Delete images from Storage
+            if (productData.images && productData.images.length > 0) {
+                await Promise.all(productData.images.map(imageUrl => {
+                    if (imageUrl.includes('placehold.co')) {
+                        return Promise.resolve();
+                    }
+                    const imageFileRef = storageRef(storage, imageUrl);
+                    // Log error but don't fail the whole batch
+                    return deleteObject(imageFileRef).catch(err => console.error(`Failed to delete image ${imageUrl}`, err));
+                }));
+            }
+        }
+        // Delete Firestore document
+        await deleteDoc(productDocRef);
+        return productId;
+    }));
+
+    const successfulDeletes = results.filter(r => r.status === 'fulfilled').length;
+    const failedDeletes = results.filter(r => r.status === 'rejected').length;
+
+    if (failedDeletes > 0) {
+        toast({
+            variant: "destructive",
+            title: "Bulk Deletion Partially Failed",
+            description: `${successfulDeletes} products deleted. ${failedDeletes} failed.`,
+        });
+    } else {
+         toast({
+          title: "Bulk Deletion Complete",
+          description: `${successfulDeletes} products have been successfully deleted.`,
+        });
+    }
   };
 
   return (
