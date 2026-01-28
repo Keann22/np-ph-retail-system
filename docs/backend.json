@@ -230,6 +230,10 @@
           "type": "string",
           "description": "Reference to the Customer. (Relationship: Customer 1:N Order)"
         },
+        "salesPersonId": {
+          "type": "string",
+          "description": "Reference to the User who made the sale. (Relationship: User 1:N Order)"
+        },
         "orderDate": {
           "type": "string",
           "description": "The date the order was placed.",
@@ -272,7 +276,8 @@
         "amountPaid",
         "balanceDue",
         "orderStatus",
-        "paymentType"
+        "paymentType",
+        "salesPersonId"
       ]
     },
     "OrderItem": {
@@ -704,3 +709,5 @@
     "reasoning": "The Firestore structure is designed to provide a secure, scalable, and debuggable solution for the RetailFlow application, adhering to the core design principles and strategy mandates.  Authorization Independence is achieved via denormalization.  Specifically, the `members` map within collaborative data structures (like `products`) denormalizes user roles.  This eliminates the need for `get()` calls in security rules, enabling atomic operations (transactions/batches). This is crucial for maintaining data consistency and simplifying security rule logic. Structural Segregation (Homogeneous Security Posture) is enforced by creating separate collections for entities with distinct access requirements.  For example, user-owned data is segregated under `/users/{userId}`, collaborative data resides at the root level (e.g., `/products`), and global roles are managed via dedicated collections (`/roles`).  This ensures that all documents within a collection share the same security rules.  Access Modeling is consistently applied using path-based ownership for user-owned data (e.g., `/users/{userId}/orders/{orderId}`) and membership maps for collaborative data.  This standardization simplifies security rule creation and maintenance.  The structure supports the required QAPs (Rules are not Filters) by using segregation. Only authorized data can be read given that the user has the role inside the Role collection, enforcing secure list operations."
   }
 }
+
+    

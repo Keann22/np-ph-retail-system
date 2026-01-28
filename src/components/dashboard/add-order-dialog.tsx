@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format } from "date-fns";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 const orderItemSchema = z.object({
   productId: z.string(),
@@ -47,6 +48,7 @@ export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
   const firestore = useFirestore();
   const { toast } = useToast();
+  const { userProfile } = useUserProfile();
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
@@ -177,6 +179,14 @@ export function AddOrderDialog() {
 
 
   async function onSubmit(values: OrderFormValues) {
+    if (!userProfile) {
+        toast({
+            variant: "destructive",
+            title: "Not Authenticated",
+            description: "You must be logged in to create an order.",
+        });
+        return;
+    }
     handleOpenChange(false);
 
     toast({
@@ -195,6 +205,7 @@ export function AddOrderDialog() {
         orderDate: values.orderDate.toISOString(),
         totalAmount,
         balanceDue,
+        salesPersonId: userProfile.id,
     }).then((orderRef) => {
         if(!orderRef) return;
 
@@ -447,3 +458,5 @@ export function AddOrderDialog() {
     </Dialog>
   );
 }
+
+    
