@@ -16,7 +16,7 @@ const ParsedItemSchema = z.object({
     unitCost: z.number().describe('The cost per unit of the product.'),
 });
 
-export const ParseReceiptInputSchema = z.object({
+const ParseReceiptInputSchema = z.object({
   photoDataUri: z
     .string()
     .describe(
@@ -25,7 +25,7 @@ export const ParseReceiptInputSchema = z.object({
 });
 export type ParseReceiptInput = z.infer<typeof ParseReceiptInputSchema>;
 
-export const ParseReceiptOutputSchema = z.object({
+const ParseReceiptOutputSchema = z.object({
     items: z.array(ParsedItemSchema).describe('The list of items parsed from the receipt.')
 });
 export type ParseReceiptOutput = z.infer<typeof ParseReceiptOutputSchema>;
