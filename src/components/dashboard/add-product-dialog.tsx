@@ -8,20 +8,23 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore, useStorage } from "@/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore, useStorage, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, getDocs, query, where, limit, orderBy } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "../ui/command";
+
+type Supplier = { id: string; name: string; [key: string]: any;};
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   sku: z.string().min(1, "SKU is required"),
   description: z.string().optional(),
   categoryId: z.string().min(1, "Category is required"),
-  supplierLink: z.string().url().optional().or(z.literal('')),
+  supplierId: z.string().optional(),
   images: z.custom<File[]>().refine((files) => files?.length > 0, "At least one image is required."),
   costPrice: z.coerce.number().min(0, "Cost price must be positive"),
   sellingPrice: z.coerce.number().min(0, "Selling price must be positive"),
@@ -35,7 +38,27 @@ export function AddProductDialog() {
   const { toast } = useToast();
   const { userProfile } = useUserProfile();
 
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [isSearchingSuppliers, setIsSearchingSuppliers] = useState(false);
+
   const canViewCostPrice = userProfile && (userProfile.roles.includes('Owner') || userProfile.roles.includes('Admin'));
+
+  const suppliersQuery = useMemoFirebase(
+    () => {
+      if (!firestore || supplierSearch.length < 1) return null;
+      const searchTermCapitalized = supplierSearch.charAt(0).toUpperCase() + supplierSearch.slice(1);
+      return query(
+        collection(firestore, 'suppliers'),
+        orderBy('name'),
+        where('name', '>=', searchTermCapitalized),
+        where('name', '<=', searchTermCapitalized + '\uf8ff'),
+        limit(10)
+      );
+    },
+    [firestore, supplierSearch]
+  );
+  const { data: supplierResults, isLoading: isLoadingSuppliers } = useCollection<Supplier>(suppliersQuery);
 
   const form = useForm<z.infer<typeof productSchema>>({
     resolver: zodResolver(productSchema),
@@ -44,7 +67,7 @@ export function AddProductDialog() {
       sku: "",
       description: "",
       categoryId: "",
-      supplierLink: "",
+      supplierId: "",
       images: [],
       costPrice: 0,
       sellingPrice: 0,
@@ -55,7 +78,6 @@ export function AddProductDialog() {
   async function onSubmit(values: z.infer<typeof productSchema>) {
     if (!firestore) return;
     
-    // Check for duplicate SKU before doing anything else
     const productsCollection = collection(firestore, 'products');
     const q = query(productsCollection, where("sku", "==", values.sku));
     const querySnapshot = await getDocs(q);
@@ -66,7 +88,7 @@ export function AddProductDialog() {
         title: "Duplicate SKU",
         description: `A product with SKU "${values.sku}" already exists. Please use a unique SKU.`,
       });
-      return; // Stop the submission
+      return;
     }
 
     setOpen(false);
@@ -78,15 +100,12 @@ export function AddProductDialog() {
 
     const { images: imageFiles, ...productCoreData } = values;
 
-    // Create the product document immediately with an empty images array.
-    // The product will appear in the list right away.
     addDocumentNonBlocking(productsCollection, {
       ...productCoreData,
       images: [], 
     })
     .then(async (newProductRef) => {
       if (!newProductRef) {
-        // This case is handled by the error emitter inside addDocumentNonBlocking
         toast({
           variant: "destructive",
           title: "Save Failed",
@@ -95,7 +114,6 @@ export function AddProductDialog() {
         return;
       }
 
-      // Now, upload images and update the document in the background.
       try {
         const imageUrls = await Promise.all(
           imageFiles.map(async (file) => {
@@ -105,7 +123,6 @@ export function AddProductDialog() {
           })
         );
 
-        // Update the document with the final image URLs
         updateDocumentNonBlocking(newProductRef, { images: imageUrls });
 
         if (productCoreData.stock > 0) {
@@ -136,6 +153,8 @@ export function AddProductDialog() {
     });
 
     form.reset();
+    setSelectedSupplier(null);
+    setSupplierSearch('');
   }
 
   return (
@@ -221,6 +240,63 @@ export function AddProductDialog() {
                         </FormItem>
                     )}
                 />
+                <FormField
+                    control={form.control}
+                    name="supplierId"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel>Supplier</FormLabel>
+                            {selectedSupplier ? (
+                                <div className="flex items-center justify-between rounded-md border border-input bg-background p-2 text-sm h-10">
+                                    <p>{selectedSupplier.name}</p>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setSelectedSupplier(null);
+                                            form.setValue('supplierId', '');
+                                        }}
+                                    >
+                                        Change
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Command className="rounded-lg border">
+                                    <CommandInput 
+                                        placeholder="Search suppliers by name..." 
+                                        value={supplierSearch} 
+                                        onValueChange={setSupplierSearch}
+                                    />
+                                    {supplierSearch.length > 0 && (
+                                        <CommandList>
+                                            {isLoadingSuppliers && <CommandItem disabled>Searching...</CommandItem>}
+                                            {supplierResults && supplierResults.length > 0 && (
+                                                <CommandGroup>
+                                                {supplierResults.map((s) => (
+                                                    <CommandItem
+                                                        key={s.id}
+                                                        value={s.name}
+                                                        onSelect={() => {
+                                                            form.setValue("supplierId", s.id)
+                                                            setSelectedSupplier(s);
+                                                            setSupplierSearch('');
+                                                        }}
+                                                    >
+                                                        {s.name}
+                                                    </CommandItem>
+                                                ))}
+                                                </CommandGroup>
+                                            )}
+                                            {!isLoadingSuppliers && (!supplierResults || supplierResults.length === 0) && supplierSearch.length > 1 && <CommandEmpty>No suppliers found.</CommandEmpty>}
+                                        </CommandList>
+                                    )}
+                                </Command>
+                            )}
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
                 {canViewCostPrice && (
                   <FormField
                       control={form.control}
@@ -257,19 +333,6 @@ export function AddProductDialog() {
                         <FormLabel>Stock</FormLabel>
                         <FormControl>
                             <Input type="number" placeholder="120" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                <FormField
-                    control={form.control}
-                    name="supplierLink"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Supplier Link</FormLabel>
-                        <FormControl>
-                            <Input type="url" placeholder="https://supplier.com/product" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>

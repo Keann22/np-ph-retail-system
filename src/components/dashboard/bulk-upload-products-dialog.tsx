@@ -123,7 +123,6 @@ export function BulkUploadProductsDialog() {
       return;
     }
     
-    // The only absolutely required header is 'name'.
     if (!headers.includes('name')) {
         toast({
             variant: "destructive",
@@ -160,9 +159,7 @@ export function BulkUploadProductsDialog() {
 
         let sku = row[headerMap['sku']]?.trim();
         
-        // Generate SKU if it's not provided
         if (!sku) {
-            // Create a simple slug from the name and add timestamp for uniqueness
             const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
             sku = `${slug.substring(0, 30)}-${Date.now()}`;
         }
@@ -173,22 +170,19 @@ export function BulkUploadProductsDialog() {
             continue;
         }
         
-        existingSkus.add(sku); // Add to set to prevent duplicates within the same file
+        existingSkus.add(sku);
 
         const stock = parseInt(row[headerMap['stock']]?.trim(), 10) || 0;
-        // User said 'price', which we map to sellingPrice
         const sellingPrice = parseFloat(row[headerMap['sellingPrice']]?.trim() || row[headerMap['price']]?.trim()) || 0;
         const costPrice = canViewCostPrice ? (parseFloat(row[headerMap['costPrice']]?.trim()) || 0) : 0;
         const description = row[headerMap['description']]?.trim() || '';
         const categoryId = row[headerMap['categoryId']]?.trim() || 'Uncategorized';
-        const supplierLink = row[headerMap['supplierLink']]?.trim() || '';
 
         const productData = {
             name,
             sku,
             description,
             categoryId,
-            supplierLink,
             images: [],
             sellingPrice,
             costPrice,
@@ -266,7 +260,7 @@ export function BulkUploadProductsDialog() {
         <DialogHeader>
           <DialogTitle>Bulk Upload Products</DialogTitle>
           <DialogDescription>
-            Upload a CSV file with your products. The only required column is <strong>name</strong>. Other supported columns are: sku, description, categoryId, sellingPrice (or price), costPrice, stock, and supplierLink.
+            Upload a CSV file with your products. The only required column is <strong>name</strong>. Other supported columns are: sku, description, categoryId, sellingPrice (or price), costPrice, and stock. Suppliers must be assigned manually after upload.
           </DialogDescription>
           <div className="text-xs text-muted-foreground bg-muted p-2 rounded-md space-y-1">
             <p>If 'sku' is not provided, a unique one will be generated from the product name.</p>

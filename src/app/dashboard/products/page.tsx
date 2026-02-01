@@ -33,7 +33,7 @@ import { deleteObject, ref as storageRef } from 'firebase/storage';
 import { AddProductDialog } from '@/components/dashboard/add-product-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BulkUploadProductsDialog } from '@/components/dashboard/bulk-upload-products-dialog';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,17 +54,23 @@ type Product = {
   sku: string;
   description: string;
   categoryId: string;
-  supplierLink: string;
+  supplierId?: string;
   images: string[];
   costPrice: number;
   sellingPrice: number;
   stock: number;
 };
 
+type Supplier = {
+    id: string;
+    name: string;
+}
+
 type FormattedProduct = Product & {
     status: { text: 'In Stock' | 'Low Stock' | 'Out of Stock'; variant: 'outline' | 'default' | 'destructive'; };
     price: string;
     image: string;
+    supplierName?: string;
 }
 
 const getStatus = (stock: number): { text: 'In Stock' | 'Low Stock' | 'Out of Stock'; variant: 'outline' | 'default' | 'destructive' } => {
@@ -91,13 +97,27 @@ export default function ProductsPage() {
     () => (firestore ? collection(firestore, 'products') : null),
     [firestore]
   );
-  const { data: products, isLoading } = useCollection<Omit<Product, 'id'>>(productsQuery);
+  const suppliersQuery = useMemoFirebase(
+    () => (firestore ? collection(firestore, 'suppliers') : null),
+    [firestore]
+  );
+
+  const { data: products, isLoading: isLoadingProducts } = useCollection<Omit<Product, 'id'>>(productsQuery);
+  const { data: suppliers, isLoading: isLoadingSuppliers } = useCollection<Omit<Supplier, 'id'>>(suppliersQuery);
   
+  const isLoading = isLoadingProducts || isLoadingSuppliers;
+
+  const supplierMap = useMemo(() => {
+    if (!suppliers) return new Map();
+    return new Map(suppliers.map(s => [s.id, s.name]));
+  }, [suppliers]);
+
   const formattedProducts: FormattedProduct[] | undefined = products?.map(p => ({
     ...p,
     status: getStatus(p.stock),
     price: `₱${p.sellingPrice.toFixed(2)}`,
     image: p.images?.[0] || 'https://placehold.co/64x64',
+    supplierName: p.supplierId ? supplierMap.get(p.supplierId) : 'N/A',
   }));
 
   const totalPages = formattedProducts ? Math.ceil(formattedProducts.length / itemsPerPage) : 0;
@@ -254,6 +274,7 @@ export default function ProductsPage() {
                 </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="hidden md:table-cell">Supplier</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead className="hidden md:table-cell">
                   Stock
@@ -274,6 +295,7 @@ export default function ProductsPage() {
                       </TableCell>
                       <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                      <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-12" /></TableCell>
                       <TableCell>
@@ -312,6 +334,7 @@ export default function ProductsPage() {
                       {product.status.text}
                     </Badge>
                   </TableCell>
+                  <TableCell className="hidden md:table-cell">{product.supplierName}</TableCell>
                   <TableCell>{product.price}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {product.stock}

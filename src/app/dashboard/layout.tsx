@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {
   Bell,
+  Building,
   Home,
   LineChart,
   LogOut,
@@ -60,6 +61,7 @@ export default function DashboardLayout({
     { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, badge: pendingOrdersCount && pendingOrdersCount > 0 ? pendingOrdersCount : null },
     { href: '/dashboard/products', label: 'Products', icon: Package, badge: null },
     { href: '/dashboard/customers', label: 'Customers', icon: Users, badge: null },
+    { href: '/dashboard/suppliers', label: 'Suppliers', icon: Building, badge: null },
     { href: '/dashboard/users', label: 'User Management', icon: Users, badge: null },
     { href: '/dashboard/reports', label: 'Reports', icon: LineChart, badge: null },
   ];
