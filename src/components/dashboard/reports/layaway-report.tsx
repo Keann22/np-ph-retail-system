@@ -1,7 +1,5 @@
 'use client';
 import { useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -30,51 +28,45 @@ type Customer = {
     lastName: string;
 };
 
+// --- STATIC PLACEHOLDER DATA ---
+const staticCustomers: Customer[] = [
+    { id: 'cust1', firstName: 'John', lastName: 'Doe' },
+    { id: 'cust2', firstName: 'Jane', lastName: 'Smith' },
+];
+
+const staticLayawayOrders: Order[] = [
+    { id: 'ord1', customerId: 'cust1', orderDate: new Date(2024, 6, 1).toISOString(), amountPaid: 100, balanceDue: 400, paymentType: 'Lay-away', orderStatus: 'Processing' },
+    { id: 'ord2', customerId: 'cust2', orderDate: new Date(2024, 6, 15).toISOString(), amountPaid: 50, balanceDue: 50, paymentType: 'Lay-away', orderStatus: 'Pending Payment' },
+];
+// --- END STATIC DATA ---
+
 export function LayawayReport() {
-    const firestore = useFirestore();
-    const { user } = useUser();
-
-    const customersQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'customers') : null), [firestore, user]);
-    const layawayOrdersQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return query(
-            collection(firestore, 'orders'),
-            where('paymentType', '==', 'Lay-away'),
-            where('orderStatus', 'in', ['Pending Payment', 'Processing']),
-            orderBy('orderDate', 'asc')
-        );
-    }, [firestore, user]);
-
-    const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
-    const { data: layawayOrders, isLoading: isLoadingOrders } = useCollection<Order>(layawayOrdersQuery);
-
-    const isLoading = isLoadingCustomers || isLoadingOrders;
+    const isLoading = false; // Using static data
 
     const customerMap = useMemo(() => {
-        if (!customers) return new Map();
-        return new Map(customers.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
-    }, [customers]);
+        return new Map(staticCustomers.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
+    }, []);
 
     const { totalPaid, totalPending, breakdown } = useMemo(() => {
-        if (!layawayOrders) {
+        if (!staticLayawayOrders) {
             return { totalPaid: 0, totalPending: 0, breakdown: [] };
         }
 
-        const paid = layawayOrders.reduce((sum, order) => sum + order.amountPaid, 0);
-        const pending = layawayOrders.reduce((sum, order) => sum + order.balanceDue, 0);
-        const orderBreakdown = layawayOrders.map(order => ({
+        const paid = staticLayawayOrders.reduce((sum, order) => sum + order.amountPaid, 0);
+        const pending = staticLayawayOrders.reduce((sum, order) => sum + order.balanceDue, 0);
+        const orderBreakdown = staticLayawayOrders.map(order => ({
             ...order,
             customerName: customerMap.get(order.customerId) || 'Unknown Customer'
         }));
 
         return { totalPaid: paid, totalPending: pending, breakdown: orderBreakdown };
-    }, [layawayOrders, customerMap]);
+    }, [customerMap]);
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="font-headline">Lay-away (Hulugan) Balances</CardTitle>
-                <CardDescription>Report on active lay-away plans where items have not yet been released.</CardDescription>
+                <CardDescription>Report on active lay-away plans where items have not yet been released. (Currently showing static data)</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 mb-6">

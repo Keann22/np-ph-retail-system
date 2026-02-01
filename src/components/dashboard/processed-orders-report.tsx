@@ -34,8 +34,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -56,45 +54,37 @@ type Customer = {
   lastName: string;
 };
 
+// --- STATIC PLACEHOLDER DATA ---
+const staticCustomers: Customer[] = [
+    { id: 'cust1', firstName: 'Liam', lastName: 'Johnson' },
+    { id: 'cust2', firstName: 'Ava', lastName: 'Williams' },
+];
+
+const staticOrders: Order[] = [
+    { id: 'ord1', customerId: 'cust1', orderDate: new Date().toISOString(), totalAmount: 150.00, orderStatus: 'Processing', paymentType: 'Full Payment' },
+    { id: 'ord2', customerId: 'cust2', orderDate: new Date().toISOString(), totalAmount: 75.50, orderStatus: 'Processing', paymentType: 'Lay-away' },
+    { id: 'ord3', customerId: 'cust1', orderDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(), totalAmount: 200.00, orderStatus: 'Processing', paymentType: 'Full Payment' },
+];
+// --- END STATIC DATA ---
+
 export function ProcessedOrdersReport() {
   const [date, setDate] = useState<DateRange | undefined>({
     from: startOfToday(),
     to: endOfToday(),
   });
 
-  const firestore = useFirestore();
-  const { user } = useUser();
-
-  // Query for all orders, ordered by date. Filtering will happen on the client.
-  const ordersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
-      collection(firestore, 'orders'),
-      orderBy('orderDate', 'desc')
-    );
-  }, [firestore, user]);
-  
-  const customersQuery = useMemoFirebase(
-    () => (firestore && user ? collection(firestore, 'customers') : null),
-    [firestore, user]
-  );
-
-  const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Omit<Order, 'id'>>(ordersQuery);
-  const { data: customers, isLoading: isLoadingCustomers } = useCollection<Omit<Customer, 'id'>>(customersQuery);
-
-  const isLoading = isLoadingOrders || isLoadingCustomers;
+  const isLoading = false; // Using static data
 
   const customerMap = useMemo(() => {
-    if (!customers) return new Map();
-    return new Map(customers.map((c) => [c.id, `${c.firstName} ${c.lastName}`]));
-  }, [customers]);
+    return new Map(staticCustomers.map((c) => [c.id, `${c.firstName} ${c.lastName}`]));
+  }, []);
 
   const formattedOrders = useMemo(() => {
-    if (!allOrders || !date?.from) return [];
+    if (!staticOrders || !date?.from) return [];
 
     const intervalEnd = date.to ?? endOfDay(date.from);
 
-    return allOrders
+    return staticOrders
       .filter(order => {
         const orderDate = new Date(order.orderDate);
         return (
@@ -108,7 +98,7 @@ export function ProcessedOrdersReport() {
         formattedDate: format(new Date(order.orderDate), 'PPP p'),
         formattedTotal: `₱${order.totalAmount.toFixed(2)}`,
       }));
-  }, [allOrders, customerMap, date]);
+  }, [customerMap, date]);
 
   const totalProcessedAmount = useMemo(() => {
     if (isLoading) return 0;
@@ -128,7 +118,7 @@ export function ProcessedOrdersReport() {
           <div>
             <CardTitle className="font-headline">Processed Orders Report</CardTitle>
             <CardDescription>
-              View all orders currently in the "Processing" state for a selected date range.
+              View all orders currently in the "Processing" state for a selected date range. (Currently showing static data)
             </CardDescription>
           </div>
           <div className="text-right">
@@ -225,5 +215,3 @@ export function ProcessedOrdersReport() {
     </Card>
   );
 }
-
-    
