@@ -1,6 +1,7 @@
 'use client';
 import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { useMemo } from 'react';
 
 export type UserProfile = {
     id: string;
@@ -21,7 +22,9 @@ export function useUserProfile() {
 
     const { data: userProfile, ...rest } = useDoc<Omit<UserProfile, 'id'>>(userProfileRef);
 
-    const profileWithId = userProfile ? { ...userProfile, id: user?.uid ?? '' } : null;
+    const profileWithId = useMemo(() => 
+        userProfile ? { ...userProfile, id: user?.uid ?? '' } : null
+    , [userProfile, user]);
 
     return { userProfile: profileWithId, ...rest };
 }
