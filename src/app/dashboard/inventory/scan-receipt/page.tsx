@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
-import { CalendarIcon, Loader2, Scan, Trash2, Upload } from 'lucide-react';
+import { CalendarIcon, Loader2, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -163,7 +163,7 @@ export default function ScanReceiptPage() {
         setReceiptImageUrl(URL.createObjectURL(file));
         setIsParsing(true);
         replace([]); // Clear previous items
-        toast({ title: 'Scanning Receipt...', description: 'Gemini is parsing the receipt. This may take a moment.' });
+        toast({ title: 'Parsing Receipt...', description: 'Gemini is processing the receipt. This may take a moment.' });
 
         try {
             const dataUri = await fileToDataUri(file);
@@ -172,13 +172,13 @@ export default function ScanReceiptPage() {
             if (result.items && result.items.length > 0) {
                 const newItems = result.items.map(item => ({...item, productId: '' })); // Add empty productId
                 replace(newItems);
-                toast({ title: 'Scan Complete!', description: 'Please review the items below and match them to your products.' });
+                toast({ title: 'Receipt Parsed!', description: 'Please review the items below and match them to your products.' });
             } else {
-                toast({ variant: 'destructive', title: 'Scan Failed', description: 'No items were found on the receipt. Please try another image.' });
+                toast({ variant: 'destructive', title: 'Parsing Failed', description: 'No items were found on the receipt. Please try another image.' });
             }
         } catch (error) {
             console.error("Error parsing receipt:", error);
-            toast({ variant: 'destructive', title: 'Scan Error', description: 'An error occurred while parsing the receipt.' });
+            toast({ variant: 'destructive', title: 'Parsing Error', description: 'An error occurred while parsing the receipt.' });
         } finally {
             setIsParsing(false);
         }
@@ -257,9 +257,9 @@ export default function ScanReceiptPage() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline flex items-center gap-2"><Scan /> Scan Receipt to Add Inventory</CardTitle>
+                <CardTitle className="font-headline flex items-center gap-2"><Upload /> Upload Receipt to Add Inventory</CardTitle>
                 <CardDescription>
-                    Upload a photo of a supplier receipt, and Gemini will automatically parse the items for you to add to your inventory.
+                    Upload an image of a supplier receipt, and Gemini will automatically parse the items for you to add to your inventory. This is designed for use on a computer where you have an existing image file.
                 </CardDescription>
             </CardHeader>
             <CardContent>

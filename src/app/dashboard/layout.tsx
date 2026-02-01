@@ -13,7 +13,7 @@ import {
   LogOut,
   Menu,
   Package,
-  Scan,
+  Upload,
   ShoppingCart,
   Truck,
   Users,
@@ -66,7 +66,7 @@ export default function DashboardLayout({
         isOpen: openInventory,
         setIsOpen: setOpenInventory,
         subItems: [
-            { href: '/dashboard/inventory/scan-receipt', label: 'Scan Receipt', icon: Scan },
+            { href: '/dashboard/inventory/scan-receipt', label: 'Upload Receipt', icon: Upload },
             { href: '/dashboard/inventory/receive', label: 'Bulk Receive', icon: Truck },
             { href: '/dashboard/inventory/restock', label: 'Restock / Purchase', icon: ArrowDownUp },
             { href: '/dashboard/inventory/batches', label: 'Stock Batch List', icon: ListChecks }
