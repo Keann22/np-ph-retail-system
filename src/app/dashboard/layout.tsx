@@ -2,10 +2,14 @@
 
 import Link from 'next/link';
 import {
+  Archive,
+  ArrowDownUp,
   Bell,
   Building,
+  ChevronDown,
   Home,
   LineChart,
+  ListChecks,
   LogOut,
   Menu,
   Package,
@@ -28,9 +32,11 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Logo } from '@/components/logo';
 import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { collection, query, where } from 'firebase/firestore';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
 
 export default function DashboardLayout({
   children,
@@ -42,6 +48,8 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const firestore = useFirestore();
+
+  const [openInventory, setOpenInventory] = useState(false);
 
   const pendingOrdersQuery = useMemoFirebase(
     () =>
@@ -57,14 +65,33 @@ export default function DashboardLayout({
   const pendingOrdersCount = pendingOrders?.length;
 
   const navLinks = [
-    { href: '/dashboard', label: 'Dashboard', icon: Home, badge: null },
+    { href: '/dashboard', label: 'Dashboard', icon: Home },
     { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, badge: pendingOrdersCount && pendingOrdersCount > 0 ? pendingOrdersCount : null },
-    { href: '/dashboard/products', label: 'Products', icon: Package, badge: null },
-    { href: '/dashboard/customers', label: 'Customers', icon: Users, badge: null },
-    { href: '/dashboard/suppliers', label: 'Suppliers', icon: Building, badge: null },
-    { href: '/dashboard/users', label: 'User Management', icon: Users, badge: null },
-    { href: '/dashboard/reports', label: 'Reports', icon: LineChart, badge: null },
+    { href: '/dashboard/products', label: 'Products', icon: Package },
+    { 
+        id: 'inventory',
+        label: 'Inventory Management', 
+        icon: Archive,
+        isOpen: openInventory,
+        setIsOpen: setOpenInventory,
+        subItems: [
+            { href: '/dashboard/inventory/restock', label: 'Restock / Purchase', icon: ArrowDownUp },
+            { href: '/dashboard/inventory/batches', label: 'Stock Batch List', icon: ListChecks }
+        ]
+    },
+    { href: '/dashboard/customers', label: 'Customers', icon: Users },
+    { href: '/dashboard/suppliers', label: 'Suppliers', icon: Building },
+    { href: '/dashboard/users', label: 'User Management', icon: Users },
+    { href: '/dashboard/reports', label: 'Reports', icon: LineChart },
   ];
+  
+  useEffect(() => {
+    // If the current path is under inventory, open the collapsible
+    if (pathname.startsWith('/dashboard/inventory')) {
+      setOpenInventory(true);
+    }
+  }, [pathname]);
+
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -78,6 +105,76 @@ export default function DashboardLayout({
   
   if (isUserLoading || !user) {
     return <div className="flex items-center justify-center min-h-screen bg-background">Loading...</div>
+  }
+  
+  const renderNavLinks = (isMobile = false) => {
+    return navLinks.map((link) => {
+      const Icon = link.icon;
+
+      if (link.subItems) {
+        const isParentActive = pathname.startsWith(`/dashboard/${link.id}`);
+        return (
+          <Collapsible key={link.id} open={link.isOpen} onOpenChange={link.setIsOpen}>
+            <CollapsibleTrigger
+              className={cn(
+                'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                isParentActive && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                isMobile && 'mx-[-0.65rem] gap-4 rounded-xl'
+              )}
+            >
+              <Icon className={isMobile ? 'h-5 w-5' : 'h-4 w-4'} />
+              {link.label}
+              <ChevronDown className={cn(
+                  "ml-auto h-4 w-4 transition-transform",
+                  link.isOpen && "rotate-180"
+              )} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pl-7 pt-2 space-y-1">
+                {link.subItems.map(subLink => {
+                const SubIcon = subLink.icon;
+                const isSubActive = pathname === subLink.href;
+                return (
+                    <Link
+                    key={subLink.href}
+                    href={subLink.href}
+                    className={cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                        isSubActive && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                    )}
+                    >
+                    <SubIcon className="h-4 w-4" />
+                    {subLink.label}
+                    </Link>
+                )
+                })}
+            </CollapsibleContent>
+          </Collapsible>
+        )
+      }
+
+      const isActive = pathname === link.href;
+      return (
+        <Link
+          key={link.href}
+          href={link.href}
+          className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all',
+              isActive
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+              isMobile && 'mx-[-0.65rem] gap-4 rounded-xl'
+            )}
+        >
+          <Icon className={isMobile ? 'h-5 w-5' : 'h-4 w-4'} />
+          {link.label}
+          {link.badge && (
+            <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              {link.badge}
+            </Badge>
+          )}
+        </Link>
+      );
+    });
   }
 
   return (
@@ -96,29 +193,7 @@ export default function DashboardLayout({
           </div>
           <div className="flex-1">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-              {navLinks.map((link) => {
-                const isActive = pathname === link.href;
-                const Icon = link.icon;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all ${
-                      isActive
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                        : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {link.label}
-                    {link.badge && (
-                      <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                        {link.badge}
-                      </Badge>
-                    )}
-                  </Link>
-                );
-              })}
+              {renderNavLinks()}
             </nav>
           </div>
         </div>
@@ -145,29 +220,7 @@ export default function DashboardLayout({
                   <Logo className="h-6 w-6" />
                   <span className="sr-only">RetailFlow</span>
                 </Link>
-                {navLinks.map((link) => {
-                    const isActive = pathname === link.href;
-                    const Icon = link.icon;
-                    return (
-                        <Link
-                            key={link.href}
-                            href={link.href}
-                            className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${
-                                isActive
-                                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                                : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                            }`}
-                        >
-                            <Icon className="h-5 w-5" />
-                            {link.label}
-                            {link.badge && (
-                            <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                                {link.badge}
-                            </Badge>
-                            )}
-                        </Link>
-                    )
-                })}
+                {renderNavLinks(true)}
               </nav>
             </SheetContent>
           </Sheet>
