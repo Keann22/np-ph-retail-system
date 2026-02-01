@@ -115,7 +115,7 @@ export function PnlReport() {
         };
     }, [orders, allOrderItems, expenses, badDebts]);
 
-    const ReportItem = ({ label, value, isBold = false, isNegative = false }) => (
+    const ReportItem = ({ label, value, isBold = false, isNegative = false }: { label: string; value: number; isBold?: boolean; isNegative?: boolean; }) => (
         <div className={`flex justify-between py-2 ${isBold ? 'font-bold' : ''}`}>
             <span>{label}</span>
             <span className={isNegative ? 'text-destructive' : ''}>₱{value.toFixed(2)}</span>
@@ -149,7 +149,7 @@ export function PnlReport() {
                         <ReportItem label="Operating Expenses" value={-reportData.operatingExpenses} />
                         <ReportItem label="Bad Debt Expense" value={-reportData.badDebtExpense} />
                         <Separator />
-                        <ReportItem label="Net Profit" value={reportData.netProfit} isBold isNegative={reportData.netProfit &lt; 0}/>
+                        <ReportItem label="Net Profit" value={reportData.netProfit} isBold isNegative={reportData.netProfit < 0}/>
                     </div>
                 )}
             </CardContent>
