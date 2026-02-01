@@ -31,11 +31,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Logo } from '@/components/logo';
-import { useAuth, useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { collection, query, where } from 'firebase/firestore';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
@@ -48,22 +47,12 @@ export default function DashboardLayout({
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const firestore = useFirestore();
 
   const [openInventory, setOpenInventory] = useState(false);
 
-  const pendingOrdersQuery = useMemoFirebase(
-    () =>
-      firestore && user
-        ? query(
-            collection(firestore, 'orders'),
-            where('orderStatus', 'in', ['Pending Payment', 'Processing'])
-          )
-        : null,
-    [firestore, user]
-  );
-  const { data: pendingOrders } = useCollection(pendingOrdersQuery);
-  const pendingOrdersCount = pendingOrders?.length;
+  // The pending orders query that was causing permission errors has been removed for stability.
+  // The badge feature can be re-introduced later with a more robust data fetching strategy.
+  const pendingOrdersCount = null;
 
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
