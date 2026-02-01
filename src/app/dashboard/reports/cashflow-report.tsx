@@ -1,9 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
-import { startOfMonth, endOfMonth } from 'date-fns';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ReportDateFilter } from './report-date-filter';
@@ -17,6 +15,7 @@ type Payment = {
 type Expense = {
     amount: number;
     expenseDate: string;
+    category: string;
 };
 
 type Refund = {
@@ -24,59 +23,43 @@ type Refund = {
     refundDate: string;
 };
 
+
+// --- STATIC PLACEHOLDER DATA ---
+const staticPayments: Payment[] = [
+    { paymentDate: new Date(2024, 6, 20).toISOString(), amount: 250 },
+    { paymentDate: new Date(2024, 6, 18).toISOString(), amount: 1200 },
+    { paymentDate: new Date(2024, 6, 15).toISOString(), amount: 300 },
+];
+const staticExpenses: Expense[] = [
+    { expenseDate: new Date(2024, 6, 1).toISOString(), amount: 150, category: 'Cost of Goods Sold' },
+    { expenseDate: new Date(2024, 6, 5).toISOString(), amount: 50, category: 'Marketing' },
+];
+const staticRefunds: Refund[] = [
+    { refundDate: new Date(2024, 6, 22).toISOString(), amount: 75 },
+];
+// --- END STATIC DATA ---
+
+
 export function CashFlowReport() {
     const [date, setDate] = useState<DateRange | undefined>({
         from: startOfMonth(new Date()),
         to: endOfMonth(new Date()),
     });
 
-    const firestore = useFirestore();
-    const { user } = useUser();
-
-    // Queries
-    const paymentsQuery = useMemoFirebase(() => {
-        if (!firestore || !user || !date?.from || !date?.to) return null;
-        return query(
-            collection(firestore, 'payments'),
-            where('paymentDate', '>=', date.from.toISOString()),
-            where('paymentDate', '<=', date.to.toISOString())
-        );
-    }, [firestore, user, date]);
-    
-    const expensesQuery = useMemoFirebase(() => {
-        if (!firestore || !user || !date?.from || !date?.to) return null;
-        return query(
-            collection(firestore, 'expenses'),
-            where('expenseDate', '>=', date.from.toISOString()),
-            where('expenseDate', '<=', date.to.toISOString())
-        );
-    }, [firestore, user, date]);
-    
-    const refundsQuery = useMemoFirebase(() => {
-        if (!firestore || !user || !date?.from || !date?.to) return null;
-        return query(
-            collection(firestore, 'refunds'),
-            where('refundDate', '>=', date.from.toISOString()),
-            where('refundDate', '<=', date.to.toISOString())
-        );
-    }, [firestore, user, date]);
-
-
-    // Fetch data
-    const { data: payments, isLoading: isLoadingPayments } = useCollection<Payment>(paymentsQuery);
-    const { data: expenses, isLoading: isLoadingExpenses } = useCollection<Expense>(expensesQuery);
-    const { data: refunds, isLoading: isLoadingRefunds } = useCollection<Refund>(refundsQuery);
-
-    const isLoading = isLoadingPayments || isLoadingExpenses || isLoadingRefunds;
+    const isLoading = false; // Using static data
 
     const reportData = useMemo(() => {
-        if (!payments || !expenses || !refunds) {
+        if (!date?.from || !date?.to) {
             return { cashIn: 0, cashOut: 0, netCash: 0 };
         }
 
-        const totalCashIn = payments.reduce((sum, payment) => sum + payment.amount, 0);
-        const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-        const totalRefunds = refunds.reduce((sum, refund) => sum + refund.amount, 0);
+        const paymentsInDateRange = staticPayments.filter(p => isWithinInterval(new Date(p.paymentDate), { start: date.from!, end: date.to! }));
+        const expensesInDateRange = staticExpenses.filter(e => isWithinInterval(new Date(e.expenseDate), { start: date.from!, end: date.to! }));
+        const refundsInDateRange = staticRefunds.filter(r => isWithinInterval(new Date(r.refundDate), { start: date.from!, end: date.to! }));
+        
+        const totalCashIn = paymentsInDateRange.reduce((sum, payment) => sum + payment.amount, 0);
+        const totalExpenses = expensesInDateRange.reduce((sum, expense) => sum + expense.amount, 0);
+        const totalRefunds = refundsInDateRange.reduce((sum, refund) => sum + refund.amount, 0);
         
         const totalCashOut = totalExpenses + totalRefunds;
         const netCash = totalCashIn - totalCashOut;
@@ -86,7 +69,7 @@ export function CashFlowReport() {
             cashOut: totalCashOut,
             netCash,
         };
-    }, [payments, expenses, refunds]);
+    }, [date]);
 
     const ReportItem = ({ label, value, isBold = false, isNegative = false }: { label: string; value: number; isBold?: boolean; isNegative?: boolean; }) => (
         <div className={`flex justify-between py-3 ${isBold ? 'font-bold text-lg' : 'text-sm'}`}>
@@ -99,7 +82,7 @@ export function CashFlowReport() {
         <Card>
             <CardHeader>
                 <CardTitle className="font-headline">Cash Flow Tracker</CardTitle>
-                <CardDescription>A report on the actual cash that moved in and out of the business.</CardDescription>
+                <CardDescription>A report on the actual cash that moved in and out of the business. (Currently showing static data)</CardDescription>
             </CardHeader>
             <CardContent>
                 <ReportDateFilter date={date} setDate={setDate} />
@@ -114,7 +97,7 @@ export function CashFlowReport() {
                         <ReportItem label="Total Cash In" value={reportData.cashIn} />
                         <ReportItem label="Total Cash Out" value={-reportData.cashOut} />
                         <Separator />
-                        <ReportItem label="Net Cash Flow" value={reportData.netCash} isBold isNegative={reportData.netCash < 0} />
+                        <ReportItem label="Net Cash Flow" value={reportData.netCash} isBold isNegative={reportData.netCash < 0}/>
                     </div>
                 )}
             </CardContent>
