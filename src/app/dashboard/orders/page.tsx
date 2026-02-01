@@ -22,7 +22,6 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -32,8 +31,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
-import { collection, query, orderBy, doc, runTransaction, where, getDocs } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddOrderDialog } from '@/components/dashboard/add-order-dialog';
 import { format } from 'date-fns';
@@ -53,23 +50,13 @@ export type Order = {
   paymentType: 'Full Payment' | 'Lay-away' | 'Installment';
 };
 
-// Matches the Firestore document structure for a customer
-type Customer = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-};
-
-type OrderItem = {
-    id: string;
-    orderId: string;
-    productId: string;
-    productName: string;
-    quantity: number;
-    costPriceAtSale: number;
-    sellingPriceAtSale: number;
-}
+// Placeholder data to prevent crash
+const staticOrders: (Order & {customerName: string})[] = [
+    { id: '1', customerId: '1', customerName: 'Olivia Martin', orderDate: new Date(2024, 6, 15).toISOString(), totalAmount: 1999.00, amountPaid: 1999.00, balanceDue: 0, orderStatus: 'Completed', paymentType: 'Full Payment' },
+    { id: '2', customerId: '2', customerName: 'Jackson Lee', orderDate: new Date(2024, 6, 14).toISOString(), totalAmount: 39.00, amountPaid: 0, balanceDue: 39.00, orderStatus: 'Pending Payment', paymentType: 'Full Payment' },
+    { id: '3', customerId: '3', customerName: 'Isabella Nguyen', orderDate: new Date(2024, 6, 12).toISOString(), totalAmount: 598.00, amountPaid: 300, balanceDue: 298.00, orderStatus: 'Processing', paymentType: 'Lay-away' },
+    { id: '4', customerId: '4', customerName: 'William Kim', orderDate: new Date(2024, 5, 30).toISOString(), totalAmount: 99.00, amountPaid: 99.00, balanceDue: 0, orderStatus: 'Shipped', paymentType: 'Full Payment' },
+];
 
 const getStatusVariant = (status: Order['orderStatus']) => {
   switch (status) {
@@ -91,129 +78,32 @@ const statuses: Order['orderStatus'][] = ['Pending Payment', 'Processing', 'Ship
 
 export default function OrdersPage() {
   const [logPaymentOrder, setLogPaymentOrder] = useState<Order | null>(null);
-  const firestore = useFirestore();
-  const { user } = useUser();
   const { toast } = useToast();
 
-  const ordersQuery = useMemoFirebase(
-    () => (firestore && user ? query(collection(firestore, 'orders'), orderBy('orderDate', 'desc')) : null),
-    [firestore, user]
-  );
-  const customersQuery = useMemoFirebase(
-    () => (firestore && user ? collection(firestore, 'customers') : null),
-    [firestore, user]
-  );
-
-  const { data: orders, isLoading: isLoadingOrders } = useCollection<Omit<Order, 'id'>>(ordersQuery);
-  const { data: customers, isLoading: isLoadingCustomers } = useCollection<Omit<Customer, 'id'>>(customersQuery);
-  
-  const isLoading = isLoadingOrders || isLoadingCustomers;
-
-  const customerMap = useMemo(() => {
-    if (!customers) return new Map();
-    return new Map(customers.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
-  }, [customers]);
+  const isLoading = false; // Using static data
 
   const formattedOrders = useMemo(() => {
-    if (!orders) return [];
-    return orders.map(order => ({
+    return staticOrders.map(order => ({
       ...order,
-      customerName: customerMap.get(order.customerId) || 'Unknown Customer',
       formattedDate: format(new Date(order.orderDate), 'PPP'),
       formattedTotal: `₱${order.totalAmount.toFixed(2)}`,
     }));
-  }, [orders, customerMap]);
+  }, []);
   
   const processOrderReturn = async (orderId: string) => {
-    if (!firestore) return;
-
-    toast({ title: 'Processing Return...', description: `Returning items for order #${orderId.substring(0,7)}`});
-    
-    // 1. Read data outside transaction
-    const itemsQuery = query(collection(firestore, 'orderItems'), where('orderId', '==', orderId));
-    const itemsSnapshot = await getDocs(itemsQuery);
-    const orderItems = itemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OrderItem[];
-
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            const orderRef = doc(firestore, 'orders', orderId);
-            const orderDoc = await transaction.get(orderRef);
-            if (!orderDoc.exists()) throw new Error("Order not found.");
-            
-            const orderData = orderDoc.data() as Order;
-            if (orderData.orderStatus === 'Returned') throw new Error("This order has already been returned.");
-            if (orderData.orderStatus === 'Cancelled') throw new Error("Cannot return a cancelled order.");
-
-            for (const item of orderItems) {
-                const productRef = doc(firestore, 'products', item.productId);
-                const productDoc = await transaction.get(productRef);
-
-                if (!productDoc.exists()) {
-                    console.warn(`Product ${item.productName} (${item.productId}) not found during return. Skipping stock update.`);
-                    continue;
-                }
-                const productData = productDoc.data();
-
-                const newBatch = {
-                    batchId: doc(collection(firestore, '_')).id,
-                    purchaseDate: new Date().toISOString(),
-                    originalQty: item.quantity,
-                    remainingQty: item.quantity,
-                    unitCost: item.costPriceAtSale,
-                    supplierName: 'Customer Return'
-                };
-                
-                const newStockBatches = [...(productData.stockBatches || []), newBatch];
-                const newQuantityOnHand = (productData.quantityOnHand || 0) + item.quantity;
-                
-                transaction.update(productRef, {
-                    quantityOnHand: newQuantityOnHand,
-                    stockBatches: newStockBatches
-                });
-
-                const movementRef = doc(collection(firestore, 'inventoryMovements'));
-                transaction.set(movementRef, {
-                    id: movementRef.id,
-                    productId: item.productId,
-                    quantityChange: item.quantity, // Positive change
-                    movementType: 'RETURN',
-                    timestamp: new Date().toISOString(),
-                    reason: `Return from order ${orderId}`
-                });
-            }
-
-            transaction.update(orderRef, { orderStatus: 'Returned' });
-        });
-
-        toast({
-            title: 'Return Processed',
-            description: `Inventory has been updated for returned items.`
-        });
-
-    } catch (e: any) {
-        console.error('Return processing failed:', e);
-        toast({
-            variant: 'destructive',
-            title: 'Return Failed',
-            description: e.message || 'An error occurred while processing the return.'
-        });
-    }
+    toast({
+        variant: "default",
+        title: 'Action Disabled',
+        description: 'Return processing is disabled while using placeholder data.'
+    });
   }
 
 
   const handleStatusChange = (orderId: string, status: Order['orderStatus']) => {
-    if (!firestore) return;
-
-    if (status === 'Returned') {
-        processOrderReturn(orderId);
-        return;
-    }
-
-    const orderDocRef = doc(firestore, 'orders', orderId);
-    updateDocumentNonBlocking(orderDocRef, { orderStatus: status });
-    toast({
-      title: 'Order Status Updated',
-      description: `The order is now marked as "${status}".`,
+     toast({
+        variant: "default",
+        title: 'Action Disabled',
+        description: 'Status changes are disabled while using placeholder data.'
     });
   };
 
@@ -224,7 +114,7 @@ export default function OrdersPage() {
           <div>
             <CardTitle className="font-headline">Orders</CardTitle>
             <CardDescription>
-              View and manage customer sales orders.
+              View and manage customer sales orders. (Currently showing static data)
             </CardDescription>
           </div>
           <AddOrderDialog />
