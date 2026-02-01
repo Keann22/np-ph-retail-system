@@ -73,11 +73,12 @@ type FormattedProduct = Product & {
     supplierName?: string;
 }
 
-const getStatus = (stock: number): { text: 'In Stock' | 'Low Stock' | 'Out of Stock'; variant: 'outline' | 'default' | 'destructive' } => {
-  if (stock === 0) {
+const getStatus = (stock: number | undefined | null): { text: 'In Stock' | 'Low Stock' | 'Out of Stock'; variant: 'outline' | 'default' | 'destructive' } => {
+  const currentStock = stock ?? 0;
+  if (currentStock === 0) {
     return { text: 'Out of Stock', variant: 'destructive' };
   }
-  if (stock <= 10) {
+  if (currentStock <= 10) {
     return { text: 'Low Stock', variant: 'default' };
   }
   return { text: 'In Stock', variant: 'outline' };
@@ -358,7 +359,7 @@ export default function ProductsPage() {
                   <TableCell className="hidden md:table-cell">{product.supplierName}</TableCell>
                   <TableCell>{product.price}</TableCell>
                   <TableCell className="hidden md:table-cell">
-                    {product.quantityOnHand}
+                    {product.quantityOnHand ?? 0}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>

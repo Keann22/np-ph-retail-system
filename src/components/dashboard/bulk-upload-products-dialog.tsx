@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, useFirestore } from "@/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -172,11 +172,23 @@ export function BulkUploadProductsDialog() {
         
         existingSkus.add(sku);
 
-        const stock = parseInt(row[headerMap['stock']]?.trim(), 10) || 0;
+        const quantityOnHand = parseInt(row[headerMap['stock']]?.trim(), 10) || 0;
         const sellingPrice = parseFloat(row[headerMap['sellingPrice']]?.trim() || row[headerMap['price']]?.trim()) || 0;
-        const costPrice = canViewCostPrice ? (parseFloat(row[headerMap['costPrice']]?.trim()) || 0) : 0;
+        const initialUnitCost = canViewCostPrice ? (parseFloat(row[headerMap['costPrice']]?.trim()) || 0) : 0;
         const description = row[headerMap['description']]?.trim() || '';
         const categoryId = row[headerMap['categoryId']]?.trim() || 'Uncategorized';
+
+        const initialBatches = [];
+        if (quantityOnHand > 0) {
+            initialBatches.push({
+                batchId: doc(collection(firestore, '_')).id,
+                purchaseDate: new Date().toISOString(),
+                originalQty: quantityOnHand,
+                remainingQty: quantityOnHand,
+                unitCost: initialUnitCost,
+                supplierName: 'Bulk Upload',
+            });
+        }
 
         const productData = {
             name,
@@ -185,16 +197,16 @@ export function BulkUploadProductsDialog() {
             categoryId,
             images: [],
             sellingPrice,
-            costPrice,
-            stock,
+            quantityOnHand,
+            stockBatches: initialBatches,
         };
 
         const uploadPromise = addDocumentNonBlocking(productsCollection, productData)
             .then(async (newProductRef) => {
-                if (newProductRef && stock > 0) {
+                if (newProductRef && quantityOnHand > 0) {
                     await addDocumentNonBlocking(inventoryMovementsCollection, {
                         productId: newProductRef.id,
-                        quantityChange: stock,
+                        quantityChange: quantityOnHand,
                         movementType: 'initial_stock',
                         timestamp: new Date().toISOString(),
                         reason: 'Bulk upload',
