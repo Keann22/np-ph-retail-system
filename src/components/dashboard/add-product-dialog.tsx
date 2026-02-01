@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore, useStorage, useCollection, useMemoFirebase } from "@/firebase";
+import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore, useStorage, useCollection, useMemoFirebase, useUser } from "@/firebase";
 import { collection, getDocs, query, where, limit, orderBy, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -35,6 +35,7 @@ export function AddProductDialog() {
   const [open, setOpen] = useState(false);
   const firestore = useFirestore();
   const storage = useStorage();
+  const { user } = useUser();
   const { toast } = useToast();
   const { userProfile } = useUserProfile();
 
@@ -45,7 +46,7 @@ export function AddProductDialog() {
 
   const suppliersQuery = useMemoFirebase(
     () => {
-      if (!firestore || supplierSearch.length < 1) return null;
+      if (!firestore || !user || supplierSearch.length < 1) return null;
       const searchTermCapitalized = supplierSearch.charAt(0).toUpperCase() + supplierSearch.slice(1);
       return query(
         collection(firestore, 'suppliers'),
@@ -55,7 +56,7 @@ export function AddProductDialog() {
         limit(10)
       );
     },
-    [firestore, supplierSearch]
+    [firestore, user, supplierSearch]
   );
   const { data: supplierResults, isLoading: isLoadingSuppliers } = useCollection<Supplier>(suppliersQuery);
 

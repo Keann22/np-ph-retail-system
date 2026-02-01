@@ -7,7 +7,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useFirestore } from "@/firebase";
+import { useFirestore, useUser } from "@/firebase";
 import { collection, doc, getDocs, query, where, orderBy, limit, runTransaction } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
@@ -56,6 +56,7 @@ type Product = { id: string; name: string; quantityOnHand: number; sellingPrice:
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const { userProfile } = useUserProfile();
 
@@ -109,7 +110,7 @@ export function AddOrderDialog() {
         setCustomerResults([]);
         return;
       }
-      if (!firestore) return;
+      if (!firestore || !user) return;
       
       setIsSearchingCustomers(true);
       const searchTermCapitalized = customerSearch.charAt(0).toUpperCase() + customerSearch.slice(1);
@@ -135,7 +136,7 @@ export function AddOrderDialog() {
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [customerSearch, firestore, toast]);
+  }, [customerSearch, firestore, user, toast]);
 
   // Debounced search for products
   useEffect(() => {
@@ -144,7 +145,7 @@ export function AddOrderDialog() {
             setProductResults([]);
             return;
         }
-        if (!firestore) return;
+        if (!firestore || !user) return;
 
         setIsSearchingProducts(true);
         const searchTermCapitalized = productSearch.charAt(0).toUpperCase() + productSearch.slice(1);
@@ -170,7 +171,7 @@ export function AddOrderDialog() {
     }, 300);
 
     return () => clearTimeout(handler);
-}, [productSearch, firestore, toast]);
+}, [productSearch, firestore, user, toast]);
 
 
   const { fields, append, remove } = useFieldArray({
