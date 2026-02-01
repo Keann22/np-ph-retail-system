@@ -59,38 +59,42 @@ function ProductSearch({ rowIndex, form, onAddNewProduct }: { rowIndex: number; 
     const [productResults, setProductResults] = useState<Product[]>([]);
     const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   
-    useEffect(() => {
+    const debouncedSearch = useCallback(() => {
         const handler = setTimeout(async () => {
-          if (search.length < 2) {
-            setProductResults([]);
-            return;
-          }
-          if (!firestore) return;
-          
-          setIsLoadingProducts(true);
-          const searchTermCapitalized = search.charAt(0).toUpperCase() + search.slice(1);
-          
-          const nameQuery = query(
-            collection(firestore, 'products'),
-            orderBy('name'),
-            where('name', '>=', searchTermCapitalized),
-            where('name', '<=', searchTermCapitalized + '\uf8ff'),
-            limit(10)
-          );
-    
-          try {
-            const querySnapshot = await getDocs(nameQuery);
-            const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-            setProductResults(results);
-          } catch (error) {
-            console.error("Error searching products:", error);
-          } finally {
-            setIsLoadingProducts(false);
-          }
-        }, 300);
-    
-        return () => clearTimeout(handler);
-      }, [search, firestore]);
+            if (search.length < 2) {
+              setProductResults([]);
+              return;
+            }
+            if (!firestore) return;
+            
+            setIsLoadingProducts(true);
+            const searchTermCapitalized = search.charAt(0).toUpperCase() + search.slice(1);
+            
+            const nameQuery = query(
+              collection(firestore, 'products'),
+              orderBy('name'),
+              where('name', '>=', searchTermCapitalized),
+              where('name', '<=', searchTermCapitalized + '\uf8ff'),
+              limit(10)
+            );
+      
+            try {
+              const querySnapshot = await getDocs(nameQuery);
+              const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+              setProductResults(results);
+            } catch (error) {
+              console.error("Error searching products:", error);
+            } finally {
+              setIsLoadingProducts(false);
+            }
+          }, 300);
+      
+          return () => clearTimeout(handler);
+    }, [search, firestore]);
+
+    useEffect(() => {
+        debouncedSearch();
+      }, [search, debouncedSearch]);
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -206,6 +210,11 @@ export default function ScanReceiptPage() {
         const item = form.getValues(`items.${rowIndex}`);
         setAddProductInitialValues({
             name: productName,
+            sku: '',
+            description: '',
+            categoryId: 'Uncategorized',
+            supplierId: '',
+            images: [],
             initialUnitCost: item.unitCost || 0,
             sellingPrice: item.unitCost ? item.unitCost * 1.5 : 0, // Suggest markup
             quantityOnHand: 0, // Stock is added when receipt is saved, not here.
