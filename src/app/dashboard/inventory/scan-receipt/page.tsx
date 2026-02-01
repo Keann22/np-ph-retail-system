@@ -192,7 +192,12 @@ export default function ScanReceiptPage() {
             const result = await parseReceipt({ photoDataUri: dataUri });
             
             if (result.items && result.items.length > 0) {
-                const newItems = result.items.map(item => ({...item, productId: '' })); // Add empty productId
+                const newItems = result.items.map(item => ({
+                    productName: item.productName || '',
+                    quantity: isNaN(item.quantity) ? 1 : item.quantity,
+                    unitCost: isNaN(item.unitCost) ? 0 : item.unitCost,
+                    productId: '',
+                }));
                 replace(newItems);
                 toast({ title: 'Receipt Parsed!', description: 'Please review the items below and match them to your products.' });
             } else {
@@ -350,10 +355,10 @@ export default function ScanReceiptPage() {
                                                     <FormMessage>{form.formState.errors?.items?.[index]?.productId?.message}</FormMessage>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (<FormItem><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
+                                                    <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (<FormItem><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                                 </TableCell>
                                                 <TableCell>
-                                                    <FormField control={form.control} name={`items.${index}.unitCost`} render={({ field }) => (<FormItem><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>)} />
+                                                    <FormField control={form.control} name={`items.${index}.unitCost`} render={({ field }) => (<FormItem><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                                 </TableCell>
                                                 <TableCell><Button type="button" variant='ghost' size='icon' onClick={() => remove(index)}><Trash2 className='h-4 w-4 text-destructive'/></Button></TableCell>
                                             </TableRow>
