@@ -2,8 +2,6 @@
 import { useState, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -30,45 +28,39 @@ type Customer = {
     lastName: string;
 };
 
+// --- STATIC PLACEHOLDER DATA ---
+const staticCustomers: Customer[] = [
+    { id: 'cust1', firstName: 'John', lastName: 'Doe' },
+    { id: 'cust2', firstName: 'Jane', lastName: 'Smith' },
+    { id: 'cust3', firstName: 'Peter', lastName: 'Jones' },
+];
+
+const staticArOrders: Order[] = [
+    { id: 'ord1', customerId: 'cust1', orderDate: new Date(2024, 5, 1).toISOString(), totalAmount: 5000, balanceDue: 2500, paymentType: 'Installment' },
+    { id: 'ord2', customerId: 'cust3', orderDate: new Date(2024, 6, 10).toISOString(), totalAmount: 1200, balanceDue: 800, paymentType: 'Installment' },
+];
+// --- END STATIC DATA ---
+
 export function AccountsReceivableReport() {
-    const firestore = useFirestore();
-    const { user } = useUser();
-
-    // Fetch all customers and orders with outstanding balances.
-    const customersQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'customers') : null), [firestore, user]);
-    const arOrdersQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return query(
-            collection(firestore, 'orders'),
-            where('balanceDue', '>', 0),
-            where('paymentType', '==', 'Installment'),
-            orderBy('balanceDue', 'desc')
-        );
-    }, [firestore, user]);
-
-    const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
-    const { data: arOrders, isLoading: isLoadingOrders } = useCollection<Order>(arOrdersQuery);
-
-    const isLoading = isLoadingCustomers || isLoadingOrders;
+    const isLoading = false; // Using static data
 
     const customerMap = useMemo(() => {
-        if (!customers) return new Map();
-        return new Map(customers.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
-    }, [customers]);
+        return new Map(staticCustomers.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
+    }, []);
 
     const { totalOutstanding, customerBreakdown } = useMemo(() => {
-        if (!arOrders) {
+        if (!staticArOrders) {
             return { totalOutstanding: 0, customerBreakdown: [] };
         }
 
-        const total = arOrders.reduce((sum, order) => sum + order.balanceDue, 0);
-        const breakdown = arOrders.map(order => ({
+        const total = staticArOrders.reduce((sum, order) => sum + order.balanceDue, 0);
+        const breakdown = staticArOrders.map(order => ({
             ...order,
             customerName: customerMap.get(order.customerId) || 'Unknown Customer'
         }));
 
         return { totalOutstanding: total, customerBreakdown: breakdown };
-    }, [arOrders, customerMap]);
+    }, [customerMap]);
 
     return (
         <Card>
@@ -76,7 +68,7 @@ export function AccountsReceivableReport() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <CardTitle className="font-headline">Accounts Receivable</CardTitle>
-                        <CardDescription>Report on outstanding installment balances.</CardDescription>
+                        <CardDescription>Report on outstanding installment balances. (Currently showing static data)</CardDescription>
                     </div>
                     <div className="text-right">
                         <p className="text-sm font-medium text-muted-foreground">Total Outstanding</p>

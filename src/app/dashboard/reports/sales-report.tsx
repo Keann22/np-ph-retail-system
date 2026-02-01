@@ -37,8 +37,6 @@ import {
   TableRow,
   TableFooter as ReportTableFooter,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -65,41 +63,38 @@ type SalesData = {
     totalAmount: number;
 }
 
+// --- STATIC PLACEHOLDER DATA ---
+const staticUsers: UserProfile[] = [
+    { id: 'user1', firstName: 'Keneth', lastName: 'Ornos' },
+    { id: 'user2', firstName: 'Jane', lastName: 'Sales' },
+];
+
+const staticOrders: Order[] = [
+    { id: 'ord1', salesPersonId: 'user1', orderDate: new Date(2024, 6, 20).toISOString(), totalAmount: 250, orderStatus: 'Completed' },
+    { id: 'ord2', salesPersonId: 'user2', orderDate: new Date(2024, 6, 18).toISOString(), totalAmount: 1200, orderStatus: 'Completed' },
+    { id: 'ord3', salesPersonId: 'user1', orderDate: new Date(2024, 6, 15).toISOString(), totalAmount: 300, orderStatus: 'Completed' },
+    { id: 'ord4', salesPersonId: 'user2', orderDate: new Date(2024, 6, 12).toISOString(), totalAmount: 800, orderStatus: 'Processing' }, // This one should be filtered out
+];
+// --- END STATIC DATA ---
+
 export function SalesReport() {
   const [date, setDate] = useState<DateRange | undefined>({
     from: subMonths(startOfToday(), 1),
     to: endOfToday(),
   });
 
-  const firestore = useFirestore();
-  const { user } = useUser();
-
-  const ordersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'orders'), orderBy('orderDate', 'desc'));
-  }, [firestore, user]);
-  
-  const usersQuery = useMemoFirebase(
-    () => (firestore && user ? collection(firestore, 'users') : null),
-    [firestore, user]
-  );
-
-  const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Omit<Order, 'id'>>(ordersQuery);
-  const { data: users, isLoading: isLoadingUsers } = useCollection<Omit<UserProfile, 'id'>>(usersQuery);
-
-  const isLoading = isLoadingOrders || isLoadingUsers;
+  const isLoading = false; // Using static data
 
   const userMap = useMemo(() => {
-    if (!users) return new Map();
-    return new Map(users.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
-  }, [users]);
+    return new Map(staticUsers.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
+  }, []);
 
   const salesByPerson = useMemo(() => {
-    if (!allOrders || !date?.from) return [];
+    if (!staticOrders || !date?.from) return [];
     
     const intervalEnd = date.to ?? endOfDay(date.from);
 
-    const salesData = allOrders
+    const salesData = staticOrders
       .filter(order => {
         const orderDate = new Date(order.orderDate);
         return (
@@ -127,7 +122,7 @@ export function SalesReport() {
       }, {} as Record<string, SalesData>);
       
       return Object.values(salesData).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [allOrders, userMap, date]);
+  }, [userMap, date]);
 
   const grandTotal = useMemo(() => {
     return salesByPerson.reduce((sum, item) => sum + item.totalAmount, 0);
@@ -144,7 +139,7 @@ export function SalesReport() {
       <CardHeader>
         <CardTitle className="font-headline">Sales Report by Person</CardTitle>
         <CardDescription>
-          View completed sales for each salesperson within a selected date range.
+          View completed sales for each salesperson within a selected date range. (Currently showing static data)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -236,5 +231,3 @@ export function SalesReport() {
     </Card>
   );
 }
-
-    
