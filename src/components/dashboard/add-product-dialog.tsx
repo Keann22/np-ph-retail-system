@@ -9,9 +9,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore, useStorage, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, getDocs, query, where, limit, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, limit, orderBy, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -23,12 +23,12 @@ const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   sku: z.string().min(1, "SKU is required"),
   description: z.string().optional(),
-  categoryId: z.string().min(1, "Category is required"),
+  categoryId: z.string().optional(),
   supplierId: z.string().optional(),
   images: z.custom<File[]>().refine((files) => files?.length > 0, "At least one image is required."),
-  costPrice: z.coerce.number().min(0, "Cost price must be positive"),
+  initialUnitCost: z.coerce.number().min(0, "Cost must be positive"),
   sellingPrice: z.coerce.number().min(0, "Selling price must be positive"),
-  stock: z.coerce.number().int().min(0, "Stock must be a non-negative integer"),
+  quantityOnHand: z.coerce.number().int().min(0, "Stock must be a non-negative integer"),
 });
 
 export function AddProductDialog() {
@@ -40,7 +40,6 @@ export function AddProductDialog() {
 
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [supplierSearch, setSupplierSearch] = useState('');
-  const [isSearchingSuppliers, setIsSearchingSuppliers] = useState(false);
 
   const canViewCostPrice = userProfile && (userProfile.roles.includes('Owner') || userProfile.roles.includes('Admin'));
 
@@ -66,17 +65,17 @@ export function AddProductDialog() {
       name: "",
       sku: "",
       description: "",
-      categoryId: "",
+      categoryId: "Uncategorized",
       supplierId: "",
       images: [],
-      costPrice: 0,
+      initialUnitCost: 0,
       sellingPrice: 0,
-      stock: 0,
+      quantityOnHand: 0,
     },
   });
 
   async function onSubmit(values: z.infer<typeof productSchema>) {
-    if (!firestore) return;
+    if (!firestore || !storage) return;
     
     const productsCollection = collection(firestore, 'products');
     const q = query(productsCollection, where("sku", "==", values.sku));
@@ -98,11 +97,26 @@ export function AddProductDialog() {
       description: `Your product "${values.name}" is being added.`,
     });
 
-    const { images: imageFiles, ...productCoreData } = values;
+    const { images: imageFiles, quantityOnHand, initialUnitCost, ...productCoreData } = values;
+
+    const initialBatches = [];
+    if (quantityOnHand > 0) {
+      const selectedSupplierName = selectedSupplier ? selectedSupplier.name : 'Initial Stock';
+      initialBatches.push({
+        batchId: doc(collection(firestore, '_')).id, // generate new id
+        purchaseDate: new Date().toISOString(),
+        originalQty: quantityOnHand,
+        remainingQty: quantityOnHand,
+        unitCost: initialUnitCost,
+        supplierName: selectedSupplierName,
+      });
+    }
 
     addDocumentNonBlocking(productsCollection, {
       ...productCoreData,
-      images: [], 
+      quantityOnHand,
+      stockBatches: initialBatches,
+      images: [],
     })
     .then(async (newProductRef) => {
       if (!newProductRef) {
@@ -125,11 +139,11 @@ export function AddProductDialog() {
 
         updateDocumentNonBlocking(newProductRef, { images: imageUrls });
 
-        if (productCoreData.stock > 0) {
+        if (quantityOnHand > 0) {
             const inventoryMovementsCollection = collection(firestore, 'inventoryMovements');
             const inventoryMovementData = {
                 productId: newProductRef.id,
-                quantityChange: productCoreData.stock,
+                quantityChange: quantityOnHand,
                 movementType: 'initial_stock',
                 timestamp: new Date().toISOString(),
                 reason: 'Initial stock for new product',
@@ -300,10 +314,10 @@ export function AddProductDialog() {
                 {canViewCostPrice && (
                   <FormField
                       control={form.control}
-                      name="costPrice"
+                      name="initialUnitCost"
                       render={({ field }) => (
                           <FormItem>
-                          <FormLabel>Cost Price (₱)</FormLabel>
+                          <FormLabel>Initial Unit Cost (₱)</FormLabel>
                           <FormControl>
                               <Input type="number" step="0.01" placeholder="20.00" {...field} />
                           </FormControl>
@@ -327,10 +341,10 @@ export function AddProductDialog() {
                 />
                 <FormField
                     control={form.control}
-                    name="stock"
+                    name="quantityOnHand"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Stock</FormLabel>
+                        <FormLabel>Initial Stock Quantity</FormLabel>
                         <FormControl>
                             <Input type="number" placeholder="120" {...field} />
                         </FormControl>

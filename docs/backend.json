@@ -78,28 +78,62 @@
             "format": "uri"
           }
         },
-        "costPrice": {
-          "type": "number",
-          "description": "The cost price of the product."
-        },
         "sellingPrice": {
           "type": "number",
           "description": "The selling price of the product."
         },
-        "stock": {
+        "quantityOnHand": {
           "type": "number",
-          "description": "The current available stock."
+          "description": "The total current available stock across all batches."
+        },
+        "stockBatches": {
+          "type": "array",
+          "description": "An array of stock batches for implementing FIFO.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "batchId": {
+                "type": "string",
+                "description": "A unique identifier for the stock batch."
+              },
+              "purchaseDate": {
+                "type": "string",
+                "description": "The date the batch was purchased.",
+                "format": "date-time"
+              },
+              "originalQty": {
+                "type": "number",
+                "description": "The original quantity of items in the batch."
+              },
+              "remainingQty": {
+                "type": "number",
+                "description": "The remaining quantity of items in this batch."
+              },
+              "unitCost": {
+                "type": "number",
+                "description": "The cost per unit for items in this batch."
+              },
+              "supplierName": {
+                "type": "string",
+                "description": "The name of the supplier for this batch."
+              }
+            },
+            "required": [
+              "batchId",
+              "purchaseDate",
+              "originalQty",
+              "remainingQty",
+              "unitCost"
+            ]
+          }
         }
       },
       "required": [
         "id",
         "sku",
         "name",
-        "description",
-        "categoryId",
-        "costPrice",
         "sellingPrice",
-        "stock"
+        "quantityOnHand"
       ]
     },
     "Category": {

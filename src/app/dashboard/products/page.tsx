@@ -56,9 +56,8 @@ type Product = {
   categoryId: string;
   supplierId?: string;
   images: string[];
-  costPrice: number;
   sellingPrice: number;
-  stock: number;
+  quantityOnHand: number;
 };
 
 type Supplier = {
@@ -114,7 +113,7 @@ export default function ProductsPage() {
 
   const formattedProducts: FormattedProduct[] | undefined = products?.map(p => ({
     ...p,
-    status: getStatus(p.stock),
+    status: getStatus(p.quantityOnHand),
     price: `₱${p.sellingPrice.toFixed(2)}`,
     image: p.images?.[0] || 'https://placehold.co/64x64',
     supplierName: p.supplierId ? supplierMap.get(p.supplierId) : 'N/A',
@@ -337,7 +336,7 @@ export default function ProductsPage() {
                   <TableCell className="hidden md:table-cell">{product.supplierName}</TableCell>
                   <TableCell>{product.price}</TableCell>
                   <TableCell className="hidden md:table-cell">
-                    {product.stock}
+                    {product.quantityOnHand}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>

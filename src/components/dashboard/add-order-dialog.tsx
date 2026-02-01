@@ -42,7 +42,7 @@ const orderSchema = z.object({
 type OrderFormValues = z.infer<typeof orderSchema>;
 
 type Customer = { id: string; firstName: string; lastName: string; [key: string]: any;};
-type Product = { id: string; name: string; stock: number; costPrice: number; sellingPrice: number; [key: string]: any;};
+type Product = { id: string; name: string; quantityOnHand: number; sellingPrice: number; stockBatches: { unitCost: number }[]; [key: string]: any;};
 
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
@@ -209,10 +209,12 @@ export function AddOrderDialog() {
     }).then((orderRef) => {
         if(!orderRef) return;
 
+        // NOTE: This does not implement FIFO for stock deduction yet.
+        // It decrements the total quantityOnHand.
         values.orderItems.forEach(item => {
             addDocumentNonBlocking(orderItemsCollection, { ...item, orderId: orderRef.id });
             const productRef = doc(firestore, 'products', item.productId);
-            updateDocumentNonBlocking(productRef, { stock: increment(-item.quantity) });
+            updateDocumentNonBlocking(productRef, { quantityOnHand: increment(-item.quantity) });
             addDocumentNonBlocking(inventoryMovementsCollection, {
                 productId: item.productId,
                 quantityChange: -item.quantity,
@@ -417,11 +419,15 @@ export function AddOrderDialog() {
                                             
                                             const productToAdd = productResults.find(prod => prod.id === p.id);
                                             if (productToAdd) {
+                                                const costPriceAtSale = productToAdd.stockBatches?.length > 0
+                                                    ? productToAdd.stockBatches[0].unitCost // Simplification: Use first batch's cost.
+                                                    : 0;
+
                                                 append({
                                                     productId: productToAdd.id,
                                                     productName: productToAdd.name,
                                                     quantity: 1,
-                                                    costPriceAtSale: productToAdd.costPrice,
+                                                    costPriceAtSale: costPriceAtSale,
                                                     sellingPriceAtSale: productToAdd.sellingPrice,
                                                 });
                                             }
@@ -431,7 +437,7 @@ export function AddOrderDialog() {
                                     >
                                     <div className="flex justify-between w-full">
                                         <span>{p.name}</span>
-                                        <span className="text-xs text-muted-foreground">Stock: {p.stock}</span>
+                                        <span className="text-xs text-muted-foreground">Stock: {p.quantityOnHand}</span>
                                     </div>
                                     </CommandItem>
                                     ))}
@@ -458,5 +464,3 @@ export function AddOrderDialog() {
     </Dialog>
   );
 }
-
-    
