@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,18 +32,19 @@ type Customer = {
 
 export function AccountsReceivableReport() {
     const firestore = useFirestore();
+    const { user } = useUser();
 
     // Fetch all customers and orders with outstanding balances.
-    const customersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'customers') : null, [firestore]);
+    const customersQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'customers') : null), [firestore, user]);
     const arOrdersQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
+        if (!firestore || !user) return null;
         return query(
             collection(firestore, 'orders'),
             where('balanceDue', '>', 0),
             where('paymentType', '==', 'Installment'),
             orderBy('balanceDue', 'desc')
         );
-    }, [firestore]);
+    }, [firestore, user]);
 
     const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
     const { data: arOrders, isLoading: isLoadingOrders } = useCollection<Order>(arOrdersQuery);

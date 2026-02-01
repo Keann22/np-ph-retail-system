@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -63,19 +63,20 @@ export function ProcessedOrdersReport() {
   });
 
   const firestore = useFirestore();
+  const { user } = useUser();
 
   // Query for all orders, ordered by date. Filtering will happen on the client.
   const ordersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(
       collection(firestore, 'orders'),
       orderBy('orderDate', 'desc')
     );
-  }, [firestore]);
+  }, [firestore, user]);
   
   const customersQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'customers') : null),
-    [firestore]
+    () => (firestore && user ? collection(firestore, 'customers') : null),
+    [firestore, user]
   );
 
   const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Omit<Order, 'id'>>(ordersQuery);

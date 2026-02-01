@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
 import { startOfMonth, endOfMonth } from 'date-fns';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -31,34 +31,35 @@ export function CashFlowReport() {
     });
 
     const firestore = useFirestore();
+    const { user } = useUser();
 
     // Queries
     const paymentsQuery = useMemoFirebase(() => {
-        if (!firestore || !date?.from || !date?.to) return null;
+        if (!firestore || !user || !date?.from || !date?.to) return null;
         return query(
             collection(firestore, 'payments'),
             where('paymentDate', '>=', date.from.toISOString()),
             where('paymentDate', '<=', date.to.toISOString())
         );
-    }, [firestore, date]);
+    }, [firestore, user, date]);
     
     const expensesQuery = useMemoFirebase(() => {
-        if (!firestore || !date?.from || !date?.to) return null;
+        if (!firestore || !user || !date?.from || !date?.to) return null;
         return query(
             collection(firestore, 'expenses'),
             where('expenseDate', '>=', date.from.toISOString()),
             where('expenseDate', '<=', date.to.toISOString())
         );
-    }, [firestore, date]);
+    }, [firestore, user, date]);
     
     const refundsQuery = useMemoFirebase(() => {
-        if (!firestore || !date?.from || !date?.to) return null;
+        if (!firestore || !user || !date?.from || !date?.to) return null;
         return query(
             collection(firestore, 'refunds'),
             where('refundDate', '>=', date.from.toISOString()),
             where('refundDate', '<=', date.to.toISOString())
         );
-    }, [firestore, date]);
+    }, [firestore, user, date]);
 
 
     // Fetch data
@@ -113,7 +114,7 @@ export function CashFlowReport() {
                         <ReportItem label="Total Cash In" value={reportData.cashIn} />
                         <ReportItem label="Total Cash Out" value={-reportData.cashOut} />
                         <Separator />
-                        <ReportItem label="Net Cash Flow" value={reportData.netCash} isBold isNegative={reportData.netCash < 0}/>
+                        <ReportItem label="Net Cash Flow" value={reportData.netCash} isBold isNegative={reportData.netCash < 0} />
                     </div>
                 )}
             </CardContent>

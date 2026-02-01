@@ -1,6 +1,6 @@
 'use client';
 import { useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,17 +32,18 @@ type Customer = {
 
 export function LayawayReport() {
     const firestore = useFirestore();
+    const { user } = useUser();
 
-    const customersQuery = useMemoFirebase(() => firestore ? collection(firestore, 'customers') : null, [firestore]);
+    const customersQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'customers') : null), [firestore, user]);
     const layawayOrdersQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
+        if (!firestore || !user) return null;
         return query(
             collection(firestore, 'orders'),
             where('paymentType', '==', 'Lay-away'),
             where('orderStatus', 'in', ['Pending Payment', 'Processing']),
             orderBy('orderDate', 'asc')
         );
-    }, [firestore]);
+    }, [firestore, user]);
 
     const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
     const { data: layawayOrders, isLoading: isLoadingOrders } = useCollection<Order>(layawayOrdersQuery);

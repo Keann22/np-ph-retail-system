@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
 import { startOfMonth, endOfMonth } from 'date-fns';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,37 +40,38 @@ export function PnlReport() {
     });
 
     const firestore = useFirestore();
+    const { user } = useUser();
 
     // Memoize queries
     const ordersQuery = useMemoFirebase(() => {
-        if (!firestore || !date?.from || !date?.to) return null;
+        if (!firestore || !user || !date?.from || !date?.to) return null;
         return query(
             collection(firestore, 'orders'),
             where('orderDate', '>=', date.from.toISOString()),
             where('orderDate', '<=', date.to.toISOString()),
             where('orderStatus', '!=', 'Cancelled')
         );
-    }, [firestore, date]);
+    }, [firestore, user, date]);
 
-    const orderItemsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'orderItems') : null, [firestore]);
+    const orderItemsQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'orderItems') : null), [firestore, user]);
     
     const expensesQuery = useMemoFirebase(() => {
-        if (!firestore || !date?.from || !date?.to) return null;
+        if (!firestore || !user || !date?.from || !date?.to) return null;
         return query(
             collection(firestore, 'expenses'),
             where('expenseDate', '>=', date.from.toISOString()),
             where('expenseDate', '<=', date.to.toISOString())
         );
-    }, [firestore, date]);
+    }, [firestore, user, date]);
 
     const badDebtsQuery = useMemoFirebase(() => {
-        if (!firestore || !date?.from || !date?.to) return null;
+        if (!firestore || !user || !date?.from || !date?.to) return null;
         return query(
             collection(firestore, 'badDebts'),
             where('writeOffDate', '>=', date.from.toISOString()),
             where('writeOffDate', '<=', date.to.toISOString())
         );
-    }, [firestore, date]);
+    }, [firestore, user, date]);
 
     // Fetch data
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
@@ -149,7 +150,7 @@ export function PnlReport() {
                         <ReportItem label="Operating Expenses" value={-reportData.operatingExpenses} />
                         <ReportItem label="Bad Debt Expense" value={-reportData.badDebtExpense} />
                         <Separator />
-                        <ReportItem label="Net Profit" value={reportData.netProfit} isBold isNegative={reportData.netProfit < 0}/>
+                        <ReportItem label="Net Profit" value={reportData.netProfit} isBold isNegative={reportData.netProfit < 0} />
                     </div>
                 )}
             </CardContent>

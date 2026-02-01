@@ -37,7 +37,7 @@ import {
   TableRow,
   TableFooter as ReportTableFooter,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -72,15 +72,16 @@ export function SalesReport() {
   });
 
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const ordersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, 'orders'), orderBy('orderDate', 'desc'));
-  }, [firestore]);
+  }, [firestore, user]);
   
   const usersQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'users') : null),
-    [firestore]
+    () => (firestore && user ? collection(firestore, 'users') : null),
+    [firestore, user]
   );
 
   const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Omit<Order, 'id'>>(ordersQuery);
