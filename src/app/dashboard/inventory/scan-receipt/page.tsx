@@ -21,6 +21,7 @@ import Image from 'next/image';
 import { parseReceipt } from '@/ai/flows/parse-receipt-flow';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
 
 // Zod schemas
 const parsedItemSchema = z.object({
