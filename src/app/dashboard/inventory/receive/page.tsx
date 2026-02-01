@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, runTransaction, query, orderBy, where, limit } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,10 +40,11 @@ function ProductSearch({ onProductSelect }: { onProductSelect: (product: Product
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const productsQuery = useMemoFirebase(
     () => {
-      if (!firestore || search.length < 2) return null;
+      if (!firestore || !user || search.length < 2) return null;
       // Simple capitalization for search term
       const searchTermCapitalized = search.charAt(0).toUpperCase() + search.slice(1);
       return query(
@@ -54,7 +55,7 @@ function ProductSearch({ onProductSelect }: { onProductSelect: (product: Product
         limit(10)
       );
     },
-    [firestore, search]
+    [firestore, user, search]
   );
   const { data: productResults, isLoading: isLoadingProducts } = useCollection<Product>(productsQuery);
   

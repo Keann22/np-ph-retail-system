@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, query, orderBy, doc, runTransaction, where, getDocs } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddOrderDialog } from '@/components/dashboard/add-order-dialog';
@@ -92,15 +92,16 @@ const statuses: Order['orderStatus'][] = ['Pending Payment', 'Processing', 'Ship
 export default function OrdersPage() {
   const [logPaymentOrder, setLogPaymentOrder] = useState<Order | null>(null);
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
 
   const ordersQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'orders'), orderBy('orderDate', 'desc')) : null),
-    [firestore]
+    () => (firestore && user ? query(collection(firestore, 'orders'), orderBy('orderDate', 'desc')) : null),
+    [firestore, user]
   );
   const customersQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'customers') : null),
-    [firestore]
+    () => (firestore && user ? collection(firestore, 'customers') : null),
+    [firestore, user]
   );
 
   const { data: orders, isLoading: isLoadingOrders } = useCollection<Omit<Order, 'id'>>(ordersQuery);

@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddSupplierDialog } from '@/components/dashboard/add-supplier-dialog';
@@ -44,10 +44,11 @@ type Supplier = {
 
 export default function SuppliersPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const suppliersQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'suppliers') : null),
-    [firestore]
+    () => (firestore && user ? collection(firestore, 'suppliers') : null),
+    [firestore, user]
   );
   const { data: suppliers, isLoading } = useCollection<Omit<Supplier, 'id'>>(suppliersQuery);
 

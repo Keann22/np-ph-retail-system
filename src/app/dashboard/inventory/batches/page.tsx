@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import {
   Card,
@@ -45,15 +45,16 @@ type FlattenedBatch = StockBatch & {
 
 export default function BatchesPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const productsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(
       collection(firestore, 'products'),
       where('quantityOnHand', '>', 0),
       orderBy('quantityOnHand', 'desc')
     );
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: products, isLoading } = useCollection<Product>(productsQuery);
 

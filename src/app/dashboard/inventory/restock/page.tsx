@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, getDocs, query, where, orderBy, limit, runTransaction } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,11 +36,12 @@ export default function RestockPage() {
   const [productSearch, setProductSearch] = useState('');
   
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
 
   const productsQuery = useMemoFirebase(
     () => {
-      if (!firestore || productSearch.length < 2) return null;
+      if (!firestore || !user || productSearch.length < 2) return null;
       const searchTermCapitalized = productSearch.charAt(0).toUpperCase() + productSearch.slice(1);
       return query(
         collection(firestore, 'products'),
@@ -50,7 +51,7 @@ export default function RestockPage() {
         limit(10)
       );
     },
-    [firestore, productSearch]
+    [firestore, user, productSearch]
   );
   const { data: productResults, isLoading: isLoadingProducts } = useCollection<Product>(productsQuery);
 
@@ -69,6 +70,7 @@ export default function RestockPage() {
   };
 
   const onSubmit = async (values: RestockFormValues) => {
+    if (!firestore) return;
     setIsSubmitting(true);
     toast({ title: 'Saving Purchase...', description: 'Please wait.' });
 

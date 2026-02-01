@@ -66,8 +66,8 @@ export default function UsersPage() {
   const { toast } = useToast();
 
   const usersQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'users') : null),
-    [firestore]
+    () => (firestore && currentUserProfile ? collection(firestore, 'users') : null),
+    [firestore, currentUserProfile]
   );
   const { data: users, isLoading } = useCollection<UserProfile>(usersQuery);
   

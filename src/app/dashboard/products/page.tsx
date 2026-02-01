@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useStorage } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useStorage, useUser } from '@/firebase';
 import { collection, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { deleteObject, ref as storageRef } from 'firebase/storage';
 import { AddProductDialog } from '@/components/dashboard/add-product-dialog';
@@ -85,6 +85,7 @@ const getStatus = (stock: number): { text: 'In Stock' | 'Low Stock' | 'Out of St
 export default function ProductsPage() {
   const firestore = useFirestore();
   const storage = useStorage();
+  const { user } = useUser();
   const [deletingProduct, setDeletingProduct] = useState<FormattedProduct | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -93,12 +94,12 @@ export default function ProductsPage() {
   const { toast } = useToast();
 
   const productsQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'products') : null),
-    [firestore]
+    () => (firestore && user ? collection(firestore, 'products') : null),
+    [firestore, user]
   );
   const suppliersQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'suppliers') : null),
-    [firestore]
+    () => (firestore && user ? collection(firestore, 'suppliers') : null),
+    [firestore, user]
   );
 
   const { data: products, isLoading: isLoadingProducts } = useCollection<Omit<Product, 'id'>>(productsQuery);

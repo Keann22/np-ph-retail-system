@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddCustomerDialog } from '@/components/dashboard/add-customer-dialog';
@@ -44,10 +44,11 @@ type Customer = {
 
 export default function CustomersPage() {
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const customersQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, 'customers') : null),
-    [firestore]
+    () => (firestore && user ? collection(firestore, 'customers') : null),
+    [firestore, user]
   );
   const { data: customers, isLoading } = useCollection<Omit<Customer, 'id'>>(customersQuery);
 
