@@ -87,7 +87,7 @@ export function CashFlowReport() {
         };
     }, [payments, expenses, refunds]);
 
-    const ReportItem = ({ label, value, isBold = false, isNegative = false }) => (
+    const ReportItem = ({ label, value, isBold = false, isNegative = false }: { label: string; value: number; isBold?: boolean; isNegative?: boolean; }) => (
         <div className={`flex justify-between py-3 ${isBold ? 'font-bold text-lg' : 'text-sm'}`}>
             <span className='text-muted-foreground'>{label}</span>
             <span className={isNegative ? 'text-destructive' : ''}>₱{value.toFixed(2)}</span>
@@ -113,7 +113,7 @@ export function CashFlowReport() {
                         <ReportItem label="Total Cash In" value={reportData.cashIn} />
                         <ReportItem label="Total Cash Out" value={-reportData.cashOut} />
                         <Separator />
-                        <ReportItem label="Net Cash Flow" value={reportData.netCash} isBold isNegative={reportData.netCash &lt; 0}/>
+                        <ReportItem label="Net Cash Flow" value={reportData.netCash} isBold isNegative={reportData.netCash < 0}/>
                     </div>
                 )}
             </CardContent>
