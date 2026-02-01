@@ -23,6 +23,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AddProductDialog } from '@/components/dashboard/add-product-dialog';
 
 // Zod schemas
 const parsedItemSchema = z.object({
@@ -51,7 +52,7 @@ const fileToDataUri = (file: File): Promise<string> => {
     });
 };
 
-function ProductSearch({ rowIndex, form }: { rowIndex: number; form: any }) {
+function ProductSearch({ rowIndex, form, onAddNewProduct }: { rowIndex: number; form: any; onAddNewProduct: (searchTerm: string, rowIndex: number) => void; }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState(form.getValues(`items.${rowIndex}.productName`) || '');
     const firestore = useFirestore();
@@ -108,26 +109,38 @@ function ProductSearch({ rowIndex, form }: { rowIndex: number; form: any }) {
               onValueChange={setSearch}
             />
             <CommandList>
-              {isLoadingProducts && <CommandItem disabled>Searching...</CommandItem>}
-              {productResults.length > 0 ? (
-                <CommandGroup>
-                  {productResults.map((p) => (
+                {isLoadingProducts && <CommandItem disabled>Searching...</CommandItem>}
+                {!isLoadingProducts && productResults.length > 0 && (
+                    <CommandGroup>
+                    {productResults.map((p) => (
+                        <CommandItem
+                        key={p.id}
+                        value={p.name}
+                        onSelect={() => {
+                            form.setValue(`items.${rowIndex}.productId`, p.id);
+                            form.setValue(`items.${rowIndex}.productName`, p.name);
+                            setOpen(false);
+                        }}
+                        >
+                        {p.name}
+                        </CommandItem>
+                    ))}
+                    </CommandGroup>
+                )}
+                {!isLoadingProducts && productResults.length === 0 && search.length > 1 && (
                     <CommandItem
-                      key={p.id}
-                      value={p.name}
-                      onSelect={() => {
-                        form.setValue(`items.${rowIndex}.productId`, p.id);
-                        form.setValue(`items.${rowIndex}.productName`, p.name);
-                        setOpen(false);
-                      }}
+                        onSelect={() => {
+                            onAddNewProduct(search, rowIndex);
+                            setOpen(false);
+                        }}
+                        className="text-primary hover:bg-primary/10"
                     >
-                      {p.name}
+                        + Add "{search}" as new product
                     </CommandItem>
-                  ))}
-                </CommandGroup>
-              ) : (
-                !isLoadingProducts && <CommandEmpty>No products found.</CommandEmpty>
-              )}
+                )}
+                {!isLoadingProducts && productResults.length === 0 && search.length <= 1 && (
+                    <CommandEmpty>Type to search products.</CommandEmpty>
+                )}
             </CommandList>
           </Command>
         </PopoverContent>
@@ -142,6 +155,11 @@ export default function ScanReceiptPage() {
     const [receiptImageUrl, setReceiptImageUrl] = useState<string | null>(null);
     const firestore = useFirestore();
     const { toast } = useToast();
+
+    // State for the AddProductDialog
+    const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
+    const [addProductInitialValues, setAddProductInitialValues] = useState<any>();
+    const [productCreationRowIndex, setProductCreationRowIndex] = useState<number | null>(null);
 
     const form = useForm<ScanFormValues>({
         resolver: zodResolver(scanSchema),
@@ -184,6 +202,18 @@ export default function ScanReceiptPage() {
         } finally {
             setIsParsing(false);
         }
+    };
+
+    const handleAddNewProduct = (productName: string, rowIndex: number) => {
+        const item = form.getValues(`items.${rowIndex}`);
+        setAddProductInitialValues({
+            name: productName,
+            initialUnitCost: item.unitCost || 0,
+            sellingPrice: item.unitCost ? item.unitCost * 1.5 : 0, // Suggest markup
+            quantityOnHand: 0, // Stock is added when receipt is saved, not here.
+        });
+        setProductCreationRowIndex(rowIndex);
+        setIsAddProductDialogOpen(true);
     };
 
     const items = useWatch({ control: form.control, name: 'items' });
@@ -309,7 +339,7 @@ export default function ScanReceiptPage() {
                                         {!isParsing && fields.map((field, index) => (
                                             <TableRow key={field.id}>
                                                 <TableCell className="font-medium">
-                                                    <ProductSearch rowIndex={index} form={form} />
+                                                    <ProductSearch rowIndex={index} form={form} onAddNewProduct={handleAddNewProduct} />
                                                     <FormMessage>{form.formState.errors?.items?.[index]?.productId?.message}</FormMessage>
                                                 </TableCell>
                                                 <TableCell>
@@ -346,6 +376,24 @@ export default function ScanReceiptPage() {
                         </div>
                     </form>
                 </Form>
+                <AddProductDialog
+                    open={isAddProductDialogOpen}
+                    onOpenChange={setIsAddProductDialogOpen}
+                    initialValues={addProductInitialValues}
+                    onProductAdded={(newProduct) => {
+                        if (productCreationRowIndex !== null) {
+                            form.setValue(`items.${productCreationRowIndex}.productId`, newProduct.id);
+                            form.setValue(`items.${productCreationRowIndex}.productName`, newProduct.name);
+                            form.trigger(`items.${productCreationRowIndex}.productId`);
+                        }
+                        setProductCreationRowIndex(null);
+                        setIsAddProductDialogOpen(false);
+                        toast({
+                            title: `Matched to ${newProduct.name}`,
+                            description: 'The new product has been created and matched to the receipt item.',
+                        });
+                    }}
+                />
             </CardContent>
         </Card>
     );

@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore, useStorage, useCollection, useMemoFirebase, useUser } from "@/firebase";
 import { collection, getDocs, query, where, limit, orderBy, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -31,8 +31,18 @@ const productSchema = z.object({
   quantityOnHand: z.coerce.number().int().min(0, "Stock must be a non-negative integer"),
 });
 
-export function AddProductDialog() {
-  const [open, setOpen] = useState(false);
+type ProductFormValues = z.infer<typeof productSchema>;
+
+interface AddProductDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  initialValues?: Partial<ProductFormValues>;
+  onProductAdded?: (product: { id: string; name: string }) => void;
+  triggerButton?: React.ReactNode;
+}
+
+export function AddProductDialog(props: AddProductDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const firestore = useFirestore();
   const storage = useStorage();
   const { user } = useUser();
@@ -41,6 +51,10 @@ export function AddProductDialog() {
 
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [supplierSearch, setSupplierSearch] = useState('');
+
+  const isControlled = props.open !== undefined && props.onOpenChange !== undefined;
+  const open = isControlled ? props.open : internalOpen;
+  const setOpen = isControlled ? props.onOpenChange : setInternalOpen;
 
   const canViewCostPrice = userProfile && (userProfile.roles.includes('Owner') || userProfile.roles.includes('Admin'));
 
@@ -60,22 +74,40 @@ export function AddProductDialog() {
   );
   const { data: supplierResults, isLoading: isLoadingSuppliers } = useCollection<Supplier>(suppliersQuery);
 
-  const form = useForm<z.infer<typeof productSchema>>({
+  const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      name: "",
-      sku: "",
-      description: "",
-      categoryId: "Uncategorized",
-      supplierId: "",
-      images: [],
-      initialUnitCost: 0,
-      sellingPrice: 0,
-      quantityOnHand: 0,
-    },
+        name: "",
+        sku: "",
+        description: "",
+        categoryId: "Uncategorized",
+        supplierId: "",
+        images: [],
+        initialUnitCost: 0,
+        sellingPrice: 0,
+        quantityOnHand: 0,
+    }
   });
 
-  async function onSubmit(values: z.infer<typeof productSchema>) {
+  useEffect(() => {
+    if (open) {
+        form.reset(props.initialValues || {
+            name: "",
+            sku: "",
+            description: "",
+            categoryId: "Uncategorized",
+            supplierId: "",
+            images: [],
+            initialUnitCost: 0,
+            sellingPrice: 0,
+            quantityOnHand: 0,
+        });
+        setSelectedSupplier(null);
+        setSupplierSearch('');
+    }
+  }, [open, props.initialValues, form]);
+
+  async function onSubmit(values: ProductFormValues) {
     if (!firestore || !storage) return;
     
     const productsCollection = collection(firestore, 'products');
@@ -128,6 +160,8 @@ export function AddProductDialog() {
         });
         return;
       }
+      
+      props.onProductAdded?.({ id: newProductRef.id, name: values.name });
 
       try {
         const imageUrls = await Promise.all(
@@ -174,9 +208,11 @@ export function AddProductDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>Add Product</Button>
-      </DialogTrigger>
+        {!isControlled && (
+            <DialogTrigger asChild>
+                {props.triggerButton || <Button>Add Product</Button>}
+            </DialogTrigger>
+        )}
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add New Product</DialogTitle>
