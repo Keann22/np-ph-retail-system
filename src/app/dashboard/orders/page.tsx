@@ -33,7 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, runTransaction, where, getDocs } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddOrderDialog } from '@/components/dashboard/add-order-dialog';
 import { format } from 'date-fns';
@@ -49,7 +49,7 @@ export type Order = {
   totalAmount: number;
   amountPaid: number;
   balanceDue: number;
-  orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled';
+  orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled' | 'Returned';
   paymentType: 'Full Payment' | 'Lay-away' | 'Installment';
 };
 
@@ -61,6 +61,16 @@ type Customer = {
   email: string;
 };
 
+type OrderItem = {
+    id: string;
+    orderId: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    costPriceAtSale: number;
+    sellingPriceAtSale: number;
+}
+
 const getStatusVariant = (status: Order['orderStatus']) => {
   switch (status) {
     case 'Shipped':
@@ -69,14 +79,15 @@ const getStatusVariant = (status: Order['orderStatus']) => {
     case 'Processing':
       return 'secondary';
     case 'Cancelled':
-      return 'destructive';
+    case 'Returned':
+        return 'destructive';
     case 'Pending Payment':
     default:
       return 'default';
   }
 }
 
-const statuses: Order['orderStatus'][] = ['Pending Payment', 'Processing', 'Shipped', 'Completed'];
+const statuses: Order['orderStatus'][] = ['Pending Payment', 'Processing', 'Shipped', 'Completed', 'Returned'];
 
 export default function OrdersPage() {
   const [logPaymentOrder, setLogPaymentOrder] = useState<Order | null>(null);
@@ -111,9 +122,92 @@ export default function OrdersPage() {
       formattedTotal: `₱${order.totalAmount.toFixed(2)}`,
     }));
   }, [orders, customerMap]);
+  
+  const processOrderReturn = async (orderId: string) => {
+    if (!firestore) return;
+
+    toast({ title: 'Processing Return...', description: `Returning items for order #${orderId.substring(0,7)}`});
+    
+    // 1. Read data outside transaction
+    const itemsQuery = query(collection(firestore, 'orderItems'), where('orderId', '==', orderId));
+    const itemsSnapshot = await getDocs(itemsQuery);
+    const orderItems = itemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as OrderItem[];
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const orderRef = doc(firestore, 'orders', orderId);
+            const orderDoc = await transaction.get(orderRef);
+            if (!orderDoc.exists()) throw new Error("Order not found.");
+            
+            const orderData = orderDoc.data() as Order;
+            if (orderData.orderStatus === 'Returned') throw new Error("This order has already been returned.");
+            if (orderData.orderStatus === 'Cancelled') throw new Error("Cannot return a cancelled order.");
+
+            for (const item of orderItems) {
+                const productRef = doc(firestore, 'products', item.productId);
+                const productDoc = await transaction.get(productRef);
+
+                if (!productDoc.exists()) {
+                    console.warn(`Product ${item.productName} (${item.productId}) not found during return. Skipping stock update.`);
+                    continue;
+                }
+                const productData = productDoc.data();
+
+                const newBatch = {
+                    batchId: doc(collection(firestore, '_')).id,
+                    purchaseDate: new Date().toISOString(),
+                    originalQty: item.quantity,
+                    remainingQty: item.quantity,
+                    unitCost: item.costPriceAtSale,
+                    supplierName: 'Customer Return'
+                };
+                
+                const newStockBatches = [...(productData.stockBatches || []), newBatch];
+                const newQuantityOnHand = (productData.quantityOnHand || 0) + item.quantity;
+                
+                transaction.update(productRef, {
+                    quantityOnHand: newQuantityOnHand,
+                    stockBatches: newStockBatches
+                });
+
+                const movementRef = doc(collection(firestore, 'inventoryMovements'));
+                transaction.set(movementRef, {
+                    id: movementRef.id,
+                    productId: item.productId,
+                    quantityChange: item.quantity, // Positive change
+                    movementType: 'RETURN',
+                    timestamp: new Date().toISOString(),
+                    reason: `Return from order ${orderId}`
+                });
+            }
+
+            transaction.update(orderRef, { orderStatus: 'Returned' });
+        });
+
+        toast({
+            title: 'Return Processed',
+            description: `Inventory has been updated for returned items.`
+        });
+
+    } catch (e: any) {
+        console.error('Return processing failed:', e);
+        toast({
+            variant: 'destructive',
+            title: 'Return Failed',
+            description: e.message || 'An error occurred while processing the return.'
+        });
+    }
+  }
+
 
   const handleStatusChange = (orderId: string, status: Order['orderStatus']) => {
     if (!firestore) return;
+
+    if (status === 'Returned') {
+        processOrderReturn(orderId);
+        return;
+    }
+
     const orderDocRef = doc(firestore, 'orders', orderId);
     updateDocumentNonBlocking(orderDocRef, { orderStatus: status });
     toast({
@@ -221,7 +315,7 @@ export default function OrdersPage() {
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive focus:bg-destructive/10"
                             onClick={() => handleStatusChange(order.id, 'Cancelled')}
-                            disabled={order.orderStatus === 'Cancelled'}
+                            disabled={order.orderStatus === 'Cancelled' || order.orderStatus === 'Returned'}
                           >
                             Cancel Order
                           </DropdownMenuItem>

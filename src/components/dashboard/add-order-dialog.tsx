@@ -7,8 +7,8 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore } from "@/firebase";
-import { collection, doc, getDocs, increment, query, where, orderBy, limit } from "firebase/firestore";
+import { useFirestore } from "@/firebase";
+import { collection, doc, getDocs, query, where, orderBy, limit, runTransaction } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -42,7 +42,16 @@ const orderSchema = z.object({
 type OrderFormValues = z.infer<typeof orderSchema>;
 
 type Customer = { id: string; firstName: string; lastName: string; [key: string]: any;};
-type Product = { id: string; name: string; quantityOnHand: number; sellingPrice: number; stockBatches: { unitCost: number }[]; [key: string]: any;};
+
+type StockBatch = {
+  batchId: string;
+  purchaseDate: string;
+  originalQty: number;
+  remainingQty: number;
+  unitCost: number;
+  supplierName: string;
+}
+type Product = { id: string; name: string; quantityOnHand: number; sellingPrice: number; stockBatches: StockBatch[]; [key: string]: any;};
 
 export function AddOrderDialog() {
   const [open, setOpen] = useState(false);
@@ -179,56 +188,119 @@ export function AddOrderDialog() {
 
 
   async function onSubmit(values: OrderFormValues) {
-    if (!userProfile) {
-        toast({
-            variant: "destructive",
-            title: "Not Authenticated",
-            description: "You must be logged in to create an order.",
-        });
-        return;
+    if (!userProfile || !firestore) {
+      toast({ variant: "destructive", title: "Authentication or Database error", description: "Could not create order." });
+      return;
     }
+    
     handleOpenChange(false);
+    toast({ title: "Creating Order...", description: "Your new order is being saved." });
 
-    toast({
-      title: "Creating Order...",
-      description: "Your new order is being saved.",
-    });
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        const ordersCollection = collection(firestore, 'orders');
+        const orderItemsCollection = collection(firestore, 'orderItems');
+        const inventoryMovementsCollection = collection(firestore, 'inventoryMovements');
 
-    const balanceDue = totalAmount - (values.amountPaid ?? 0);
+        const totalAmount = values.orderItems.reduce((total, item) => total + (item.sellingPriceAtSale * item.quantity), 0);
+        const balanceDue = totalAmount - (values.amountPaid ?? 0);
 
-    const ordersCollection = collection(firestore, 'orders');
-    const orderItemsCollection = collection(firestore, 'orderItems');
-    const inventoryMovementsCollection = collection(firestore, 'inventoryMovements');
+        const newOrderRef = doc(ordersCollection);
+        
+        for (const item of values.orderItems) {
+          const productRef = doc(firestore, 'products', item.productId);
+          const productDoc = await transaction.get(productRef);
 
-    addDocumentNonBlocking(ordersCollection, {
-        ...values,
-        orderDate: values.orderDate.toISOString(),
-        totalAmount,
-        balanceDue,
-        salesPersonId: userProfile.id,
-    }).then((orderRef) => {
-        if(!orderRef) return;
+          if (!productDoc.exists()) {
+            throw new Error(`Product "${item.productName}" not found.`);
+          }
 
-        // NOTE: This does not implement FIFO for stock deduction yet.
-        // It decrements the total quantityOnHand.
-        values.orderItems.forEach(item => {
-            addDocumentNonBlocking(orderItemsCollection, { ...item, orderId: orderRef.id });
-            const productRef = doc(firestore, 'products', item.productId);
-            updateDocumentNonBlocking(productRef, { quantityOnHand: increment(-item.quantity) });
-            addDocumentNonBlocking(inventoryMovementsCollection, {
-                productId: item.productId,
-                quantityChange: -item.quantity,
-                movementType: 'sale',
-                timestamp: new Date().toISOString(),
-                reason: `Order ${orderRef.id}`,
-            });
+          const productData = productDoc.data() as Product;
+
+          if (productData.quantityOnHand < item.quantity) {
+            throw new Error(`Not enough stock for "${item.productName}". Only ${productData.quantityOnHand} available.`);
+          }
+
+          let quantityToDeduct = item.quantity;
+          let totalCostOfGoods = 0;
+          
+          const sortedBatches = (productData.stockBatches || []).sort(
+            (a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()
+          );
+
+          const updatedBatches: StockBatch[] = [];
+
+          for (const batch of sortedBatches) {
+            if (quantityToDeduct <= 0) {
+              updatedBatches.push(batch);
+              continue;
+            }
+
+            const deductFromThisBatch = Math.min(quantityToDeduct, batch.remainingQty);
+            totalCostOfGoods += deductFromThisBatch * batch.unitCost;
+            
+            const newRemainingQty = batch.remainingQty - deductFromThisBatch;
+            quantityToDeduct -= deductFromThisBatch;
+
+            if (newRemainingQty > 0) {
+              updatedBatches.push({ ...batch, remainingQty: newRemainingQty });
+            }
+          }
+          
+          if (quantityToDeduct > 0) {
+            throw new Error(`Stock calculation error for "${item.productName}". Not enough batch quantity available.`);
+          }
+
+          const newQuantityOnHand = productData.quantityOnHand - item.quantity;
+          const costPriceAtSale = totalCostOfGoods / item.quantity;
+
+          transaction.update(productRef, {
+            quantityOnHand: newQuantityOnHand,
+            stockBatches: updatedBatches,
+          });
+
+          const newOrderItemRef = doc(orderItemsCollection);
+          transaction.set(newOrderItemRef, { 
+            ...item, 
+            id: newOrderItemRef.id,
+            orderId: newOrderRef.id,
+            costPriceAtSale: isNaN(costPriceAtSale) ? 0 : costPriceAtSale
+          });
+
+          const newMovementRef = doc(inventoryMovementsCollection);
+          transaction.set(newMovementRef, {
+            id: newMovementRef.id,
+            productId: item.productId,
+            quantityChange: -item.quantity,
+            movementType: 'sale',
+            timestamp: new Date().toISOString(),
+            reason: `Order ${newOrderRef.id}`,
+          });
+        }
+
+        transaction.set(newOrderRef, {
+          ...values,
+          id: newOrderRef.id,
+          orderDate: values.orderDate.toISOString(),
+          totalAmount,
+          balanceDue,
+          salesPersonId: userProfile.id,
         });
+      });
 
-        toast({
-            title: "Order Created",
-            description: "The new order has been successfully saved.",
-        });
-    });
+      toast({
+        title: "Order Created",
+        description: "The new order has been successfully saved and inventory updated.",
+      });
+
+    } catch (e: any) {
+      console.error("Order creation transaction failed: ", e);
+      toast({
+        variant: 'destructive',
+        title: 'Order Failed',
+        description: e.message || 'Could not create the order due to an error.',
+      });
+    }
   }
 
   return (
@@ -419,8 +491,9 @@ export function AddOrderDialog() {
                                             
                                             const productToAdd = productResults.find(prod => prod.id === p.id);
                                             if (productToAdd) {
+                                                // Simplified cost for UI display, actual cost is calculated in the backend transaction
                                                 const costPriceAtSale = productToAdd.stockBatches?.length > 0
-                                                    ? productToAdd.stockBatches[0].unitCost // Simplification: Use first batch's cost.
+                                                    ? productToAdd.stockBatches[0].unitCost
                                                     : 0;
 
                                                 append({
