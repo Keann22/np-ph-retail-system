@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -56,7 +56,6 @@ function ProductSearch({ rowIndex, form, onAddNewProduct }: { rowIndex: number; 
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState(form.getValues(`items.${rowIndex}.productName`) || '');
     const firestore = useFirestore();
-    const { toast } = useToast();
     const [productResults, setProductResults] = useState<Product[]>([]);
     const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   
@@ -85,14 +84,13 @@ function ProductSearch({ rowIndex, form, onAddNewProduct }: { rowIndex: number; 
             setProductResults(results);
           } catch (error) {
             console.error("Error searching products:", error);
-            toast({ variant: "destructive", title: "Product search failed" });
           } finally {
             setIsLoadingProducts(false);
           }
         }, 300);
     
         return () => clearTimeout(handler);
-      }, [search, firestore, toast]);
+      }, [search, firestore]);
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -204,7 +202,7 @@ export default function ScanReceiptPage() {
         }
     };
 
-    const handleAddNewProduct = (productName: string, rowIndex: number) => {
+    const handleAddNewProduct = useCallback((productName: string, rowIndex: number) => {
         const item = form.getValues(`items.${rowIndex}`);
         setAddProductInitialValues({
             name: productName,
@@ -214,7 +212,7 @@ export default function ScanReceiptPage() {
         });
         setProductCreationRowIndex(rowIndex);
         setIsAddProductDialogOpen(true);
-    };
+    }, [form]);
 
     const items = useWatch({ control: form.control, name: 'items' });
     const totalCost = items.reduce((total, item) => total + ((item.quantity || 0) * (item.unitCost || 0)), 0);
