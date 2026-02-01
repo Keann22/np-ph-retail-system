@@ -529,6 +529,16 @@
         "phoneNumber": {
           "type": "string",
           "description": "The phone number of the supplier."
+        },
+        "facebookProfileLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "Link to the supplier's Facebook profile."
+        },
+        "website": {
+          "type": "string",
+          "format": "uri",
+          "description": "The supplier's website URL."
         }
       },
       "required": [

@@ -36,8 +36,10 @@ type Supplier = {
   id: string;
   name: string;
   contactPerson?: string;
-  email: string;
+  email?: string;
   phoneNumber?: string;
+  facebookProfileLink?: string;
+  website?: string;
 };
 
 export default function SuppliersPage() {
@@ -66,7 +68,7 @@ export default function SuppliersPage() {
             <TableRow>
               <TableHead>Supplier Name</TableHead>
               <TableHead className="hidden md:table-cell">Contact Person</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
+              <TableHead className="hidden md:table-cell">Contact Info</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -101,7 +103,19 @@ export default function SuppliersPage() {
                   </div>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">{supplier.contactPerson || 'N/A'}</TableCell>
-                <TableCell className="hidden md:table-cell">{supplier.email}</TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {supplier.facebookProfileLink ? (
+                    <a href={supplier.facebookProfileLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Facebook
+                    </a>
+                  ) : supplier.website ? (
+                    <a href={supplier.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Website
+                    </a>
+                  ) : (
+                    supplier.email || 'N/A'
+                  )}
+                </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

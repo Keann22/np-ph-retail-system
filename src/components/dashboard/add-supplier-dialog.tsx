@@ -15,8 +15,10 @@ import { useState } from "react";
 const supplierSchema = z.object({
   name: z.string().min(1, "Supplier name is required"),
   contactPerson: z.string().optional(),
-  email: z.string().email("Invalid email address"),
+  email: z.string().email("Invalid email address").optional().or(z.literal('')),
   phoneNumber: z.string().optional(),
+  facebookProfileLink: z.string().url("Must be a valid URL").optional().or(z.literal('')),
+  website: z.string().url("Must be a valid URL").optional().or(z.literal('')),
 });
 
 export function AddSupplierDialog() {
@@ -31,6 +33,8 @@ export function AddSupplierDialog() {
       contactPerson: "",
       email: "",
       phoneNumber: "",
+      facebookProfileLink: "",
+      website: "",
     },
   });
 
@@ -97,10 +101,36 @@ export function AddSupplierDialog() {
               />
               <FormField
                 control={form.control}
+                name="facebookProfileLink"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Facebook Profile Link</FormLabel>
+                    <FormControl>
+                        <Input type="url" placeholder="https://facebook.com/supplier" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                control={form.control}
+                name="website"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Website</FormLabel>
+                    <FormControl>
+                        <Input type="url" placeholder="https://supplier.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+              <FormField
+                control={form.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Email (Optional)</FormLabel>
                     <FormControl>
                       <Input type="email" placeholder="contact@globalimports.com" {...field} />
                     </FormControl>
@@ -113,7 +143,7 @@ export function AddSupplierDialog() {
                 name="phoneNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
+                    <FormLabel>Phone Number (Optional)</FormLabel>
                     <FormControl>
                       <Input placeholder="09171234567" {...field} />
                     </FormControl>
