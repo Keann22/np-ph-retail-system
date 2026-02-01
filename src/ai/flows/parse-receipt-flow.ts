@@ -12,15 +12,15 @@ import {z} from 'genkit';
 
 const ParsedItemSchema = z.object({
     productName: z.string().describe('The name of the product found on the receipt.'),
-    quantity: z.number().describe('The quantity of the product.'),
-    unitCost: z.number().describe('The cost per unit of the product.'),
+    quantity: z.coerce.number().describe('The quantity of the product.'),
+    unitCost: z.coerce.number().describe('The cost per unit of the product.'),
 });
 
 const ParseReceiptInputSchema = z.object({
   photoDataUri: z
     .string()
     .describe(
-      "A photo of a receipt, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A photo of a receipt, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'"
     ),
 });
 export type ParseReceiptInput = z.infer<typeof ParseReceiptInputSchema>;
