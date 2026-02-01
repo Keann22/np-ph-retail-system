@@ -42,7 +42,9 @@ const prompt = ai.definePrompt({
 
 Extract each line item from the receipt. For each item, identify the product name, the quantity, and the unit cost. Ignore any totals, taxes, or other fees.
 
-Return the data in the specified JSON format. If you cannot determine a value for a field, use a sensible default (e.g., 1 for quantity, 0 for unitCost).
+For quantity and unitCost, you MUST provide a numeric value. If a value is unclear or missing on the receipt for a specific item, use a default value of 1 for quantity and 0 for unitCost.
+
+Return the data in the specified JSON format.
 
 Receipt Image: {{media url=photoDataUri}}`,
 });

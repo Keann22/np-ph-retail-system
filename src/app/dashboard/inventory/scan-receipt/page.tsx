@@ -330,7 +330,7 @@ export default function ScanReceiptPage() {
                                 <FormMessage>{form.formState.errors.items?.message || form.formState.errors.items?.root?.message}</FormMessage>
                                 {fields.length > 0 && (
                                     <div className="pt-4 space-y-2 text-right">
-                                        <p className="text-lg">Total Shipment Cost: <span className="font-bold">₱{totalCost.toFixed(2)}</span></p>
+                                        <p className="text-lg">Total Purchase Cost: <span className="font-bold">₱{totalCost.toFixed(2)}</span></p>
                                     </div>
                                 )}
                             </div>

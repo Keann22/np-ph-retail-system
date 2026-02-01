@@ -344,7 +344,7 @@ export default function BulkReceivePage() {
             <Button type='button' variant='outline' onClick={addNewItem}>Add Item</Button>
 
             <div className="pt-4 space-y-2 text-right">
-                <p className="text-lg">Total Shipment Cost: <span className="font-bold">₱{totalCost.toFixed(2)}</span></p>
+                <p className="text-lg">Total Purchase Cost: <span className="font-bold">₱{totalCost.toFixed(2)}</span></p>
             </div>
 
             <div className='flex justify-end'>
