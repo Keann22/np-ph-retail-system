@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 
 // Matches the Firestore document structure for a product
 type Product = {
@@ -92,6 +93,7 @@ export default function ProductsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
   const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState('');
 
   const productsQuery = useMemoFirebase(
     () => (firestore && user ? collection(firestore, 'products') : null),
@@ -112,21 +114,31 @@ export default function ProductsPage() {
     return new Map(suppliers.map(s => [s.id, s.name]));
   }, [suppliers]);
 
-  const formattedProducts: FormattedProduct[] | undefined = products?.map(p => ({
-    ...p,
-    status: getStatus(p.quantityOnHand),
-    price: `₱${p.sellingPrice.toFixed(2)}`,
-    image: p.images?.[0] || 'https://placehold.co/64x64',
-    supplierName: p.supplierId ? supplierMap.get(p.supplierId) : 'N/A',
-  }));
+  const formattedProducts: FormattedProduct[] = useMemo(() => {
+    if (!products) return [];
+    return products.map(p => ({
+      ...p,
+      status: getStatus(p.quantityOnHand),
+      price: `₱${p.sellingPrice.toFixed(2)}`,
+      image: p.images?.[0] || 'https://placehold.co/64x64',
+      supplierName: p.supplierId ? supplierMap.get(p.supplierId) : 'N/A',
+    }));
+  }, [products, supplierMap]);
 
-  const totalPages = formattedProducts ? Math.ceil(formattedProducts.length / itemsPerPage) : 0;
-  const paginatedProducts = formattedProducts?.slice(
+  const filteredProducts = useMemo(() => {
+    if (!searchTerm) return formattedProducts;
+    return formattedProducts.filter(product =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [formattedProducts, searchTerm]);
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const paginatedProducts = filteredProducts.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-  const startIndex = formattedProducts ? (currentPage - 1) * itemsPerPage + 1 : 0;
-  const endIndex = formattedProducts ? Math.min(currentPage * itemsPerPage, formattedProducts.length) : 0;
+  const startIndex = filteredProducts.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endIndex = filteredProducts.length > 0 ? Math.min(currentPage * itemsPerPage, filteredProducts.length) : 0;
 
 
   const handleDeleteConfirm = async () => {
@@ -224,6 +236,8 @@ export default function ProductsPage() {
     }
   };
 
+  const areAllFilteredSelected = filteredProducts.length > 0 && filteredProducts.every(p => selectedProductIds.includes(p.id));
+
   return (
     <>
       <Card>
@@ -240,15 +254,24 @@ export default function ProductsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="mb-4">
-              {selectedProductIds.length > 0 && (
-                  <Button
-                      variant="destructive"
-                      onClick={() => setShowBulkDeleteConfirm(true)}
-                  >
-                      Delete Selected ({selectedProductIds.length})
-                  </Button>
-              )}
+          <div className="flex items-center justify-between mb-4">
+            <Input
+              placeholder="Search products by name..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="max-w-sm"
+            />
+            {selectedProductIds.length > 0 && (
+                <Button
+                    variant="destructive"
+                    onClick={() => setShowBulkDeleteConfirm(true)}
+                >
+                    Delete Selected ({selectedProductIds.length})
+                </Button>
+            )}
           </div>
           <Table>
             <TableHeader>
@@ -256,16 +279,14 @@ export default function ProductsPage() {
                 <TableHead className="w-[50px]">
                   <Checkbox
                     onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedProductIds(formattedProducts?.map(p => p.id) || []);
-                      } else {
-                        setSelectedProductIds([]);
-                      }
+                        if (checked) {
+                            setSelectedProductIds(prev => Array.from(new Set([...prev, ...filteredProducts.map(p => p.id)])));
+                        } else {
+                            const filteredIds = new Set(filteredProducts.map(p => p.id));
+                            setSelectedProductIds(prev => prev.filter(id => !filteredIds.has(id)));
+                        }
                     }}
-                    checked={
-                      (formattedProducts?.length ?? 0) > 0 &&
-                      selectedProductIds.length === formattedProducts?.length
-                    }
+                    checked={areAllFilteredSelected}
                     aria-label="Select all"
                   />
                 </TableHead>
@@ -365,19 +386,19 @@ export default function ProductsPage() {
               ))}
             </TableBody>
           </Table>
-          {!isLoading && (!formattedProducts || formattedProducts.length === 0) && (
+          {!isLoading && filteredProducts.length === 0 && (
               <div className="flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg p-12 mt-4">
                   <p className="text-lg font-semibold">No products found</p>
                   <p className="text-muted-foreground mt-2">
-                      Click "Add Product" to get started.
+                      {searchTerm ? `Your search for "${searchTerm}" did not match any products.` : `Click "Add Product" to get started.`}
                   </p>
               </div>
           )}
         </CardContent>
-        {formattedProducts && formattedProducts.length > 0 && (
+        {filteredProducts.length > 0 && (
           <CardFooter className="flex items-center justify-between">
             <div className="text-xs text-muted-foreground">
-              Showing <strong>{startIndex}-{endIndex}</strong> of <strong>{formattedProducts.length}</strong> products
+              Showing <strong>{startIndex}-{endIndex}</strong> of <strong>{filteredProducts.length}</strong> products
             </div>
             <div className="flex items-center space-x-2">
               <Button
