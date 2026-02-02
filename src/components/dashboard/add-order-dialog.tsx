@@ -444,7 +444,7 @@ export function AddOrderDialog() {
                                 <FormItem>
                                     <FormLabel>Installment Months</FormLabel>
                                     <FormControl>
-                                        <Input type="number" placeholder="e.g., 3" {...field} />
+                                        <Input type="number" placeholder="e.g., 3" {...field} value={field.value ?? ''} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
