@@ -37,14 +37,14 @@ service cloud.firestore {
     match /users/{userId} {
       // A user can always get their own profile. Admins can get any.
       allow get: if isOwner(userId) || isSuperAdmin() || hasAnyRole(['Admin']);
-      // LIST is restricted for query safety.
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin']);
+      // LIST is restricted to Super Admin for query safety.
+      allow list: if isSuperAdmin();
       // Any signed-in user can create their own profile document.
       allow create: if isOwner(userId);
       // A user can update their own profile. Admins can update any.
       allow update: if isOwner(userId) || isSuperAdmin() || hasAnyRole(['Admin']);
       // Only Admins/Owners can delete users.
-      allow delete: if isSuperAdmin() || hasAnyRole(['Admin']);
+      allow delete: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /products/{productId} {
@@ -54,7 +54,7 @@ service cloud.firestore {
     }
     
     match /categories/{categoryId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow list: if isSuperAdmin();
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
@@ -66,7 +66,7 @@ service cloud.firestore {
     }
 
     match /customers/{customerId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow list: if isSuperAdmin();
       allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
@@ -90,13 +90,13 @@ service cloud.firestore {
     }
 
     match /expenses/{expenseId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow list: if isSuperAdmin();
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /recurringExpenses/{recurringExpenseId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow list: if isSuperAdmin();
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
@@ -120,7 +120,7 @@ service cloud.firestore {
     }
 
     match /suppliers/{supplierId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
+      allow list: if isSuperAdmin();
       allow get: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
     }
