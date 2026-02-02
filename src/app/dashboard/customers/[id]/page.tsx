@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LogPaymentDialog } from '@/components/dashboard/log-payment-dialog';
 import { format } from 'date-fns';
 import { type Order } from '@/app/dashboard/orders/page';
+import { Badge } from '@/components/ui/badge';
 
 type Customer = {
   id: string;
@@ -27,10 +28,27 @@ type Payment = {
   paymentMethod: string;
 }
 
+const getStatusVariant = (status: Order['orderStatus']) => {
+    switch (status) {
+      case 'Shipped':
+      case 'Completed':
+        return 'outline';
+      case 'Processing':
+        return 'secondary';
+      case 'Cancelled':
+      case 'Returned':
+          return 'destructive';
+      case 'Pending Payment':
+      default:
+        return 'default';
+    }
+  }
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const customerId = params.id as string;
   const firestore = useFirestore();
+  const router = useRouter();
 
   const [logPaymentOrder, setLogPaymentOrder] = useState<Order | null>(null);
   
@@ -102,11 +120,11 @@ export default function CustomerDetailPage() {
           </CardHeader>
         </Card>
         
-        {/* Installments Section */}
+        {/* Outstanding Balances Section */}
         <Card>
           <CardHeader>
             <CardTitle>Outstanding Balances</CardTitle>
-            <CardDescription>All orders with a remaining balance.</CardDescription>
+            <CardDescription>All active orders with a remaining balance.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -136,6 +154,42 @@ export default function CustomerDetailPage() {
           </CardContent>
         </Card>
         
+        {/* Order History Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Order History</CardTitle>
+            <CardDescription>A complete log of all orders from this customer.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Order Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Total Amount</TableHead>
+                  <TableHead><span className="sr-only">Actions</span></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orders.length > 0 ? orders.map(order => (
+                  <TableRow key={order.id}>
+                    <TableCell>{format(new Date(order.orderDate), 'PPP')}</TableCell>
+                    <TableCell><Badge variant={getStatusVariant(order.orderStatus)}>{order.orderStatus}</Badge></TableCell>
+                    <TableCell className="text-right">₱{order.totalAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/orders/${order.id}`)}>
+                        View Order
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow><TableCell colSpan={4} className="h-24 text-center">No orders found.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
         {/* Payment History Section */}
         <Card>
           <CardHeader>
