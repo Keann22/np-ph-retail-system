@@ -6,7 +6,7 @@ import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebas
 import { collection } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ReportDateFilter } from './report-date-filter';
+import { ReportDateFilter } from '@/components/dashboard/reports/report-date-filter';
 import { Separator } from '@/components/ui/separator';
 
 type Payment = {
