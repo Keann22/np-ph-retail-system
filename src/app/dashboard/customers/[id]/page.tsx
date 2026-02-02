@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useDoc, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, query, where, orderBy } from 'firebase/firestore';
+import { collection, doc, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -38,22 +38,29 @@ export default function CustomerDetailPage() {
   const customerRef = useMemoFirebase(() => (firestore && customerId ? doc(firestore, 'customers', customerId) : null), [firestore, customerId]);
   const { data: customer, isLoading: isLoadingCustomer } = useDoc<Customer>(customerRef);
   
-  // Fetch orders for this customer
-  const ordersQuery = useMemoFirebase(() => (firestore && customerId ? query(collection(firestore, 'orders'), where('customerId', '==', customerId), orderBy('orderDate', 'desc')) : null), [firestore, customerId]);
-  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+  // Fetch ALL orders and payments, then filter on the client
+  const allOrdersQuery = useMemoFirebase(() => (firestore ? query(collection(firestore, 'orders'), orderBy('orderDate', 'desc')) : null), [firestore]);
+  const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(allOrdersQuery);
 
-  const orderIds = useMemo(() => orders?.map(o => o.id) || [], [orders]);
-  
-  // Fetch payments for this customer's orders
-  const paymentsQuery = useMemoFirebase(() => {
-    if (!firestore || orderIds.length === 0) return null;
-    // Firestore 'in' queries are limited to 30 elements. This will fail if a customer has more than 30 orders.
-    // For this app's scope, we assume this is a reasonable limitation.
-    return query(collection(firestore, 'payments'), where('orderId', 'in', orderIds), orderBy('paymentDate', 'desc'));
-  }, [firestore, orderIds]);
-  const { data: payments, isLoading: isLoadingPayments } = useCollection<Payment>(paymentsQuery);
-  
+  const allPaymentsQuery = useMemoFirebase(() => (firestore ? query(collection(firestore, 'payments'), orderBy('paymentDate', 'desc')) : null), [firestore]);
+  const { data: allPayments, isLoading: isLoadingPayments } = useCollection<Payment>(allPaymentsQuery);
+
   const isLoading = isLoadingCustomer || isLoadingOrders || isLoadingPayments;
+
+  // Client-side filtering for orders
+  const orders = useMemo(() => {
+    if (!allOrders || !customerId) return [];
+    return allOrders.filter(o => o.customerId === customerId);
+  }, [allOrders, customerId]);
+  
+  const orderIds = useMemo(() => orders.map(o => o.id), [orders]);
+
+  // Client-side filtering for payments
+  const payments = useMemo(() => {
+    if (!allPayments || orderIds.length === 0) return [];
+    const orderIdSet = new Set(orderIds);
+    return allPayments.filter(p => orderIdSet.has(p.orderId));
+  }, [allPayments, orderIds]);
 
   const { totalBalanceOwed, outstandingOrders } = useMemo(() => {
     if (!orders) return { totalBalanceOwed: 0, outstandingOrders: [] };
