@@ -3,16 +3,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Get the user's data from their profile document
+    // --- Functions ---
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Check if the user has any of the required roles
+    // WARNING: Do not use this function for 'list' rules on collections. It contains a `get()` call.
     function hasAnyRole(requiredRoles) {
       let userData = getUserData();
-      // This safely checks for the existence of user data, the 'roles' field, 
-      // ensures it's a list, and then checks for role membership.
       return request.auth != null 
              && userData != null 
              && 'roles' in userData 
@@ -20,83 +18,75 @@ service cloud.firestore {
              && userData.roles.hasAny(requiredRoles);
     }
     
-    // Check if the user is the owner of the document
     function isOwner(userId) {
         return request.auth.uid == userId;
     }
 
-    // A function to check for the super admin, to be used in rules directly.
     function isSuperAdmin() {
       return request.auth != null && request.auth.token.email == 'keneth.ornos@owner.com';
     }
 
-    // Owner, Admin can manage users
+    // --- Collections ---
+
     match /users/{userId} {
-      allow read, update, delete, list: if isSuperAdmin();
-      allow read, update: if isOwner(userId) || hasAnyRole(['Owner', 'Admin']);
-      allow list: if hasAnyRole(['Owner', 'Admin']) || (request.auth != null && request.query.limit <= 1);
-      allow delete: if hasAnyRole(['Owner', 'Admin']);
+      allow read, update: if isSuperAdmin() || isOwner(userId) || hasAnyRole(['Owner', 'Admin']);
+      allow delete: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin']);
       allow create: if request.auth != null && request.auth.uid == userId;
+      // LIST: SuperAdmin can list all. Any new user can check if they're the first (for role assignment).
+      allow list: if isSuperAdmin() || (request.auth != null && request.query.limit <= 1);
     }
 
-    // Owner, Admin, Sales roles can manage core sales data
     match /orders/{orderId} {
-      allow read, list, create, update: if isSuperAdmin();
-      allow read, list, create, update: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow read, create, update: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow list: if isSuperAdmin();
     }
     match /orderItems/{itemId} {
-      allow read, list, create, update: if isSuperAdmin();
-      allow read, list, create, update: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow read, create, update: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow list: if isSuperAdmin();
     }
     match /customers/{customerId} {
-      allow read, list, create, update, delete: if isSuperAdmin();
-      allow read, list, create, update, delete: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow read, create, update, delete: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow list: if isSuperAdmin();
     }
     match /payments/{paymentId} {
-      allow read, list, create: if isSuperAdmin();
-      allow read, list, create: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow read, create: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow list: if isSuperAdmin();
     }
      match /returns/{returnId} {
-      allow read, list, create, update: if isSuperAdmin();
-      allow read, list, create, update: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow read, create, update: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow list: if isSuperAdmin();
     }
      match /refunds/{refundId} {
-      allow read, list, create, update: if isSuperAdmin();
-      allow read, list, create, update: if hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow read, create, update: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin', 'Sales']);
+      allow list: if isSuperAdmin();
     }
 
 
-    // Owner, Admin, Warehouse Manager can manage inventory and suppliers
     match /products/{productId} {
       allow read, list: if request.auth != null;
-      allow create, update, delete: if isSuperAdmin();
-      allow create, update: if hasAnyRole(['Owner', 'Admin', 'Warehouse Manager']);
-      allow delete: if hasAnyRole(['Owner', 'Admin']);
+      allow create, update: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin', 'Warehouse Manager']);
+      allow delete: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin']);
     }
     match /inventoryMovements/{movementId} {
-      allow create, read, list: if isSuperAdmin();
-      allow create: if hasAnyRole(['Owner', 'Admin', 'Warehouse Manager', 'Sales']);
-      allow read, list: if hasAnyRole(['Owner', 'Admin', 'Warehouse Manager']);
+      allow read, create: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin', 'Warehouse Manager', 'Sales']);
+      allow list: if isSuperAdmin();
     }
      match /suppliers/{supplierId} {
       allow read, list: if request.auth != null;
-      allow create, update, delete: if isSuperAdmin();
-      allow create, update, delete: if hasAnyRole(['Owner', 'Admin', 'Warehouse Manager']);
+      allow create, update, delete: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin', 'Warehouse Manager']);
     }
     match /categories/{categoryId} {
         allow read, list: if request.auth != null;
-        allow create, update, delete: if isSuperAdmin();
-        allow create, update, delete: if hasAnyRole(['Owner', 'Admin']);
+        allow create, update, delete: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin']);
     }
 
-    // Owner, Admin can manage financials
     match /expenses/{expenseId} {
-      allow read, list, create, update, delete: if isSuperAdmin();
-      allow read, list, create, update, delete: if hasAnyRole(['Owner', 'Admin']);
+      allow read, create, update, delete: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin']);
+      allow list: if isSuperAdmin();
     }
     match /badDebts/{badDebtId} {
-       allow read, list, create, update, delete: if isSuperAdmin();
-       allow read, list, create, update, delete: if hasAnyRole(['Owner', 'Admin']);
+       allow read, create, update, delete: if isSuperAdmin() || hasAnyRole(['Owner', 'Admin']);
+       allow list: if isSuperAdmin();
     }
   }
 }
