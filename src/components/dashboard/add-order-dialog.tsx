@@ -33,10 +33,19 @@ const orderSchema = z.object({
   orderDate: z.date({ required_error: "An order date is required." }),
   orderItems: z.array(orderItemSchema).min(1, "Please add at least one product to the order."),
   paymentType: z.enum(["Full Payment", "Lay-away", "Installment"], { required_error: "You need to select a payment type." }),
+  installmentMonths: z.coerce.number().positive("Must be a positive number.").optional(),
   orderStatus: z.enum(["Pending Payment", "Processing", "Shipped", "Completed", "Cancelled"]),
   amountPaid: z.coerce.number().min(0).optional(),
   shippingDetails: z.string().optional(),
   platformFees: z.coerce.number().min(0).optional(),
+}).refine(data => {
+    if (data.paymentType === 'Installment') {
+        return data.installmentMonths && data.installmentMonths > 0;
+    }
+    return true;
+}, {
+    message: "Installment months are required for installment plans.",
+    path: ["installmentMonths"],
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
@@ -273,8 +282,11 @@ export function AddOrderDialog() {
           });
         }
 
+        const { installmentMonths, ...restOfValues } = values;
+
         transaction.set(newOrderRef, {
-          ...values,
+          ...restOfValues,
+          installmentMonths: values.paymentType === 'Installment' ? installmentMonths : null,
           id: newOrderRef.id,
           orderDate: values.orderDate.toISOString(),
           totalAmount,
@@ -424,6 +436,21 @@ export function AddOrderDialog() {
                         </FormItem>
                       )}
                     />
+                    {form.watch('paymentType') === 'Installment' && (
+                        <FormField
+                            control={form.control}
+                            name="installmentMonths"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Installment Months</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" placeholder="e.g., 3" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    )}
                     {form.watch('paymentType') !== 'Full Payment' && (
                         <FormField
                             control={form.control}

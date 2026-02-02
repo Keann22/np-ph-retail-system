@@ -40,6 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LogPaymentDialog } from '@/components/dashboard/log-payment-dialog';
 import { useCollection, useFirestore, useMemoFirebase, useUser, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { Progress } from '@/components/ui/progress';
 
 
 // Matches the Firestore document structure for an order
@@ -52,6 +53,7 @@ export type Order = {
   balanceDue: number;
   orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled' | 'Returned';
   paymentType: 'Full Payment' | 'Lay-away' | 'Installment';
+  installmentMonths?: number;
 };
 
 type Customer = {
@@ -184,11 +186,22 @@ export default function OrdersPage() {
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     {order.paymentType}
+                    {order.paymentType === 'Installment' && order.installmentMonths && (
+                        <span className="text-muted-foreground text-xs ml-1">({order.installmentMonths} mos)</span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <Badge variant={getStatusVariant(order.orderStatus)}>
                       {order.orderStatus}
                     </Badge>
+                    {order.paymentType === 'Installment' && order.installmentMonths && order.totalAmount > 0 && (
+                        <div className="mt-2 w-24">
+                            <Progress value={(order.amountPaid / order.totalAmount) * 100} className="h-1" />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Paid {((order.amountPaid / order.totalAmount) * order.installmentMonths).toFixed(1)} of {order.installmentMonths} mos.
+                            </p>
+                        </div>
+                    )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {order.formattedDate}

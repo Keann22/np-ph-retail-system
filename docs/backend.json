@@ -298,6 +298,10 @@
         "platformFees": {
           "type": "number",
           "description": "Fees charged by the platform (e.g. Shopee percentage)"
+        },
+        "installmentMonths": {
+          "type": "number",
+          "description": "The number of months for an installment plan."
         }
       },
       "required": [

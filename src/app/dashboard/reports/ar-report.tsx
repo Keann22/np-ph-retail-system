@@ -23,6 +23,7 @@ type Order = {
     customerId: string;
     paymentType: 'Full Payment' | 'Lay-away' | 'Installment';
     orderStatus: string;
+    installmentMonths?: number;
 };
 
 type Customer = {
@@ -111,7 +112,7 @@ export function AccountsReceivableReport() {
                         <TableRow>
                             <TableHead>Customer</TableHead>
                             <TableHead>Order Date</TableHead>
-                            <TableHead>Payment Type</TableHead>
+                            <TableHead>Terms</TableHead>
                             <TableHead className="text-right">Total Amount</TableHead>
                             <TableHead className="text-right">Balance Due</TableHead>
                         </TableRow>
@@ -131,7 +132,10 @@ export function AccountsReceivableReport() {
                             <TableCell className="font-medium">{order.customerName}</TableCell>
                             <TableCell>{format(new Date(order.orderDate), 'PPP')}</TableCell>
                             <TableCell>
-                                <span className="text-muted-foreground">{order.paymentType}</span>
+                                <span className="text-muted-foreground">
+                                    {order.paymentType}
+                                    {order.paymentType === 'Installment' && order.installmentMonths ? ` (${order.installmentMonths} mos.)` : ''}
+                                </span>
                             </TableCell>
                             <TableCell className="text-right">₱{order.totalAmount.toFixed(2)}</TableCell>
                             <TableCell className="text-right font-semibold">₱{order.balanceDue.toFixed(2)}</TableCell>
