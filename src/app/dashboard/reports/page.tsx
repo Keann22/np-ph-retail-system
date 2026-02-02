@@ -6,6 +6,7 @@ import { SalesReport } from '@/components/dashboard/sales-report';
 import { PnlReport } from '@/components/dashboard/reports/pnl-report';
 import { LayawayReport } from '@/components/dashboard/reports/layaway-report';
 import { CashFlowReport } from '@/components/dashboard/reports/cashflow-report';
+import { AccountsReceivableReport } from '@/app/dashboard/reports/ar-report';
 
 export default function ReportsPage() {
   return (
@@ -16,6 +17,7 @@ export default function ReportsPage() {
           <TabsTrigger value="sales">Sales by Person</TabsTrigger>
           <TabsTrigger value="processed-orders">Processed Orders</TabsTrigger>
           <TabsTrigger value="layaway-report">Lay-away Balances</TabsTrigger>
+          <TabsTrigger value="ar-report">Accounts Receivable</TabsTrigger>
           <TabsTrigger value="cashflow-report">Cash Flow</TabsTrigger>
         </TabsList>
       </div>
@@ -30,6 +32,9 @@ export default function ReportsPage() {
       </TabsContent>
        <TabsContent value="layaway-report">
         <LayawayReport />
+      </TabsContent>
+      <TabsContent value="ar-report">
+        <AccountsReceivableReport />
       </TabsContent>
       <TabsContent value="cashflow-report">
         <CashFlowReport />
