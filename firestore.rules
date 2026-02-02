@@ -3,14 +3,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Get the user's roles from their profile document
-    function getUserRoles() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
+    // Get the user's data from their profile document
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     // Check if the user has any of the required roles
     function hasAnyRole(requiredRoles) {
-      return getUserRoles().hasAny(requiredRoles);
+      let userData = getUserData();
+      // This safely checks for the existence of user data, the 'roles' field, 
+      // ensures it's a list, and then checks for role membership.
+      return request.auth != null 
+             && userData != null 
+             && 'roles' in userData 
+             && userData.roles is list 
+             && userData.roles.hasAny(requiredRoles);
     }
     
     // Check if the user is the owner of the document
@@ -21,9 +28,12 @@ service cloud.firestore {
     // Owner, Admin can manage users
     match /users/{userId} {
       allow read, update: if isOwner(userId) || hasAnyRole(['Owner', 'Admin']);
-      allow list: if hasAnyRole(['Owner', 'Admin']);
+      // Allow admins/owners to list all users.
+      // Also, allow any authenticated user to perform a very limited list query (limit: 1).
+      // This is crucial for the sign-up logic to check if they are the first user.
+      allow list: if hasAnyRole(['Owner', 'Admin']) || (request.auth != null && request.query.limit <= 1);
       allow delete: if hasAnyRole(['Owner', 'Admin']);
-      // Any authenticated user can create their own user document upon sign-up, which is handled by a cloud function or server-side logic
+      // Any authenticated user can create their own user document upon sign-up.
       allow create: if request.auth != null && request.auth.uid == userId;
     }
 
