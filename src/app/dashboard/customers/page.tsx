@@ -30,6 +30,10 @@ import { collection } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddCustomerDialog } from '@/components/dashboard/add-customer-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
+import { Badge } from '@/components/ui/badge';
+
 
 // Matches the Firestore document structure for a customer
 type Customer = {
@@ -42,7 +46,17 @@ type Customer = {
   shippingAddresses: string[];
 };
 
+// Matches a subset of the Order type
+type Order = {
+    id: string;
+    customerId: string;
+    balanceDue: number;
+    orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled' | 'Returned';
+};
+
+
 export default function CustomersPage() {
+  const router = useRouter();
   const firestore = useFirestore();
   const { user } = useUser();
 
@@ -50,7 +64,28 @@ export default function CustomersPage() {
     () => (firestore && user ? collection(firestore, 'customers') : null),
     [firestore, user]
   );
-  const { data: customers, isLoading } = useCollection<Omit<Customer, 'id'>>(customersQuery);
+  const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
+
+  const ordersQuery = useMemoFirebase(
+    () => (firestore && user ? collection(firestore, 'orders') : null),
+    [firestore, user]
+  );
+  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+
+  const isLoading = isLoadingCustomers || isLoadingOrders;
+
+  const customerBalances = useMemo(() => {
+    if (!orders) return new Map<string, number>();
+    const balances = new Map<string, number>();
+    for (const order of orders) {
+        if (order.balanceDue > 0 && order.orderStatus !== 'Cancelled' && order.orderStatus !== 'Returned') {
+            const currentBalance = balances.get(order.customerId) || 0;
+            balances.set(order.customerId, currentBalance + order.balanceDue);
+        }
+    }
+    return balances;
+  }, [orders]);
+
 
   return (
     <Card>
@@ -68,8 +103,9 @@ export default function CustomersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
-              <TableHead className="hidden md:table-cell">Phone</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Balance Owed</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -86,14 +122,19 @@ export default function CustomersPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-48" /></TableCell>
-                    <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
                     <TableCell>
-                        <Skeleton className="h-8 w-8" />
+                        <Skeleton className="h-8 w-8 ml-auto" />
                     </TableCell>
                  </TableRow>
             ))}
-            {customers && customers.map((customer) => (
+            {customers && customers.map((customer) => {
+              const balance = customerBalances.get(customer.id) || 0;
+              const status: {text: string, variant: 'outline' | 'destructive'} = balance > 0 ? { text: 'Has Balance', variant: 'destructive' } : { text: 'Paid Up', variant: 'outline' };
+
+              return (
               <TableRow key={customer.id}>
                 <TableCell>
                   <div className="flex items-center gap-4">
@@ -103,8 +144,13 @@ export default function CustomersPage() {
                     <div className="font-medium">{customer.firstName} {customer.lastName}</div>
                   </div>
                 </TableCell>
-                <TableCell className="hidden md:table-cell">{customer.email}</TableCell>
-                <TableCell className="hidden md:table-cell">{customer.phoneNumber || 'N/A'}</TableCell>
+                <TableCell>{customer.phoneNumber || 'N/A'}</TableCell>
+                <TableCell>
+                    <Badge variant={status.variant}>{status.text}</Badge>
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                    {balance > 0 ? `₱${balance.toFixed(2)}` : '—'}
+                </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -115,7 +161,9 @@ export default function CustomersPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem>View Orders</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => router.push(`/dashboard/customers/${customer.id}`)}>
+                        View Account
+                      </DropdownMenuItem>
                       <DropdownMenuItem>Edit</DropdownMenuItem>
                       <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
                         Delete
@@ -124,7 +172,7 @@ export default function CustomersPage() {
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+            )})}
           </TableBody>
         </Table>
         {!isLoading && (!customers || customers.length === 0) && (
