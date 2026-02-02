@@ -8,7 +8,6 @@ import {
   startOfYesterday,
   endOfYesterday,
   format,
-  isWithinInterval,
   endOfDay,
   subMonths,
 } from 'date-fns';
@@ -21,7 +20,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from '@/components/ui/card';
 import {
   Popover,
@@ -39,6 +37,9 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+
 
 // Matches a subset of the Firestore document structure for an order
 type Order = {
@@ -63,45 +64,43 @@ type SalesData = {
     totalAmount: number;
 }
 
-// --- STATIC PLACEHOLDER DATA ---
-const staticUsers: UserProfile[] = [
-    { id: 'user1', firstName: 'Keneth', lastName: 'Ornos' },
-    { id: 'user2', firstName: 'Jane', lastName: 'Sales' },
-];
-
-const staticOrders: Order[] = [
-    { id: 'ord1', salesPersonId: 'user1', orderDate: new Date(2024, 6, 20).toISOString(), totalAmount: 250, orderStatus: 'Completed' },
-    { id: 'ord2', salesPersonId: 'user2', orderDate: new Date(2024, 6, 18).toISOString(), totalAmount: 1200, orderStatus: 'Completed' },
-    { id: 'ord3', salesPersonId: 'user1', orderDate: new Date(2024, 6, 15).toISOString(), totalAmount: 300, orderStatus: 'Completed' },
-    { id: 'ord4', salesPersonId: 'user2', orderDate: new Date(2024, 6, 12).toISOString(), totalAmount: 800, orderStatus: 'Processing' }, // This one should be filtered out
-];
-// --- END STATIC DATA ---
-
 export function SalesReport() {
   const [date, setDate] = useState<DateRange | undefined>({
     from: subMonths(startOfToday(), 1),
     to: endOfToday(),
   });
 
-  const isLoading = false; // Using static data
+  const firestore = useFirestore();
+  const { user } = useUser();
+
+  const ordersQuery = useMemoFirebase(() => {
+      if (!firestore || !user || !date?.from || !date.to) return null;
+      return query(
+          collection(firestore, 'orders'),
+          where('orderStatus', '==', 'Completed'),
+          where('orderDate', '>=', date.from.toISOString()),
+          where('orderDate', '<=', date.to.toISOString())
+      );
+  }, [firestore, user, date]);
+  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+
+  const usersQuery = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return collection(firestore, 'users');
+  }, [firestore, user]);
+  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
+
+  const isLoading = isLoadingOrders || isLoadingUsers;
 
   const userMap = useMemo(() => {
-    return new Map(staticUsers.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
-  }, []);
+    if (!users) return new Map();
+    return new Map(users.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
+  }, [users]);
 
   const salesByPerson = useMemo(() => {
-    if (!staticOrders || !date?.from) return [];
+    if (!orders || !userMap) return [];
     
-    const intervalEnd = date.to ?? endOfDay(date.from);
-
-    const salesData = staticOrders
-      .filter(order => {
-        const orderDate = new Date(order.orderDate);
-        return (
-          order.orderStatus === 'Completed' &&
-          isWithinInterval(orderDate, { start: date.from!, end: intervalEnd })
-        );
-      })
+    const salesData = orders
       .reduce((acc, order) => {
         const { salesPersonId, totalAmount } = order;
         if (!salesPersonId) return acc; // Skip if no salesperson assigned
@@ -122,7 +121,7 @@ export function SalesReport() {
       }, {} as Record<string, SalesData>);
       
       return Object.values(salesData).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [userMap, date]);
+  }, [orders, userMap]);
 
   const grandTotal = useMemo(() => {
     return salesByPerson.reduce((sum, item) => sum + item.totalAmount, 0);
@@ -139,7 +138,7 @@ export function SalesReport() {
       <CardHeader>
         <CardTitle className="font-headline">Sales Report by Person</CardTitle>
         <CardDescription>
-          View completed sales for each salesperson within a selected date range. (Currently showing static data)
+          View completed sales for each salesperson within a selected date range.
         </CardDescription>
       </CardHeader>
       <CardContent>

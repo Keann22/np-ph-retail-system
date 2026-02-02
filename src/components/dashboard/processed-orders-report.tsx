@@ -8,7 +8,6 @@ import {
   startOfYesterday,
   endOfYesterday,
   format,
-  isWithinInterval,
   endOfDay,
 } from 'date-fns';
 import { Calendar as CalendarIcon, Download } from 'lucide-react';
@@ -36,6 +35,9 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+
 
 // Matches the Firestore document structure for an order
 type Order = {
@@ -54,51 +56,50 @@ type Customer = {
   lastName: string;
 };
 
-// --- STATIC PLACEHOLDER DATA ---
-const staticCustomers: Customer[] = [
-    { id: 'cust1', firstName: 'Liam', lastName: 'Johnson' },
-    { id: 'cust2', firstName: 'Ava', lastName: 'Williams' },
-];
-
-const staticOrders: Order[] = [
-    { id: 'ord1', customerId: 'cust1', orderDate: new Date().toISOString(), totalAmount: 150.00, orderStatus: 'Processing', paymentType: 'Full Payment' },
-    { id: 'ord2', customerId: 'cust2', orderDate: new Date().toISOString(), totalAmount: 75.50, orderStatus: 'Processing', paymentType: 'Lay-away' },
-    { id: 'ord3', customerId: 'cust1', orderDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(), totalAmount: 200.00, orderStatus: 'Processing', paymentType: 'Full Payment' },
-];
-// --- END STATIC DATA ---
-
 export function ProcessedOrdersReport() {
   const [date, setDate] = useState<DateRange | undefined>({
     from: startOfToday(),
     to: endOfToday(),
   });
 
-  const isLoading = false; // Using static data
+  const firestore = useFirestore();
+  const { user } = useUser();
+
+  const ordersQuery = useMemoFirebase(() => {
+      if (!firestore || !user || !date?.from || !date.to) return null;
+      return query(
+          collection(firestore, 'orders'),
+          where('orderStatus', '==', 'Processing'),
+          where('orderDate', '>=', date.from.toISOString()),
+          where('orderDate', '<=', date.to.toISOString())
+      );
+  }, [firestore, user, date]);
+  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+
+  const customersQuery = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return collection(firestore, 'customers');
+  }, [firestore, user]);
+  const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
+
+  const isLoading = isLoadingOrders || isLoadingCustomers;
 
   const customerMap = useMemo(() => {
-    return new Map(staticCustomers.map((c) => [c.id, `${c.firstName} ${c.lastName}`]));
-  }, []);
+    if (!customers) return new Map();
+    return new Map(customers.map((c) => [c.id, `${c.firstName} ${c.lastName}`]));
+  }, [customers]);
 
   const formattedOrders = useMemo(() => {
-    if (!staticOrders || !date?.from) return [];
+    if (!orders) return [];
 
-    const intervalEnd = date.to ?? endOfDay(date.from);
-
-    return staticOrders
-      .filter(order => {
-        const orderDate = new Date(order.orderDate);
-        return (
-          order.orderStatus === 'Processing' &&
-          isWithinInterval(orderDate, { start: date.from!, end: intervalEnd })
-        );
-      })
+    return orders
       .map((order) => ({
         ...order,
         customerName: customerMap.get(order.customerId) || 'Unknown Customer',
         formattedDate: format(new Date(order.orderDate), 'PPP p'),
         formattedTotal: `₱${order.totalAmount.toFixed(2)}`,
       }));
-  }, [customerMap, date]);
+  }, [orders, customerMap]);
 
   const totalProcessedAmount = useMemo(() => {
     if (isLoading) return 0;
@@ -118,7 +119,7 @@ export function ProcessedOrdersReport() {
           <div>
             <CardTitle className="font-headline">Processed Orders Report</CardTitle>
             <CardDescription>
-              View all orders currently in the "Processing" state for a selected date range. (Currently showing static data)
+              View all orders currently in the "Processing" state for a selected date range.
             </CardDescription>
           </div>
           <div className="text-right">

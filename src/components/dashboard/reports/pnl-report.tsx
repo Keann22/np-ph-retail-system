@@ -1,11 +1,13 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
-import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { startOfMonth, endOfMonth } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ReportDateFilter } from './report-date-filter';
 import { Separator } from '@/components/ui/separator';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
 
 type Order = {
     id: string;
@@ -31,61 +33,75 @@ type BadDebt = {
     writeOffDate: string;
 }
 
-// --- STATIC PLACEHOLDER DATA ---
-const staticOrders: Order[] = [
-    { id: 'ord1', orderDate: new Date(2024, 6, 20).toISOString(), totalAmount: 250, orderStatus: 'Completed' },
-    { id: 'ord2', orderDate: new Date(2024, 6, 18).toISOString(), totalAmount: 1200, orderStatus: 'Processing' },
-    { id: 'ord3', orderDate: new Date(2024, 6, 15).toISOString(), totalAmount: 800, orderStatus: 'Processing' },
-    { id: 'ord4', orderDate: new Date(2024, 5, 10).toISOString(), totalAmount: 50, orderStatus: 'Cancelled' },
-];
-const staticOrderItems: OrderItem[] = [
-    { orderId: 'ord1', quantity: 1, costPriceAtSale: 180 },
-    { orderId: 'ord2', quantity: 2, costPriceAtSale: 400 },
-    { orderId: 'ord3', quantity: 1, costPriceAtSale: 650 },
-];
-const staticExpenses: Expense[] = [
-    { expenseDate: new Date(2024, 6, 1).toISOString(), amount: 15000, category: 'Rent' },
-    { expenseDate: new Date(2024, 6, 5).toISOString(), amount: 5000, category: 'Utilities' },
-];
-const staticBadDebts: BadDebt[] = [
-    { writeOffDate: new Date(2024, 6, 25).toISOString(), amount: 150 },
-];
-// --- END STATIC DATA ---
-
 export function PnlReport() {
     const [date, setDate] = useState<DateRange | undefined>({
         from: startOfMonth(new Date()),
         to: endOfMonth(new Date()),
     });
 
-    const isLoading = false; // Using static data
+    const firestore = useFirestore();
+    const { user } = useUser();
+
+    // Queries
+    const ordersQuery = useMemoFirebase(() => {
+        if (!firestore || !user || !date?.from || !date?.to) return null;
+        return query(
+            collection(firestore, 'orders'),
+            where('orderDate', '>=', date.from.toISOString()),
+            where('orderDate', '<=', date.to.toISOString()),
+            where('orderStatus', '!=', 'Cancelled')
+        );
+    }, [firestore, user, date]);
+    const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+
+    const expensesQuery = useMemoFirebase(() => {
+        if (!firestore || !user || !date?.from || !date?.to) return null;
+        return query(
+            collection(firestore, 'expenses'),
+            where('expenseDate', '>=', date.from.toISOString()),
+            where('expenseDate', '<=', date.to.toISOString())
+        );
+    }, [firestore, user, date]);
+    const { data: expenses, isLoading: isLoadingExpenses } = useCollection<Expense>(expensesQuery);
+
+    const badDebtsQuery = useMemoFirebase(() => {
+        if (!firestore || !user || !date?.from || !date?.to) return null;
+        return query(
+            collection(firestore, 'badDebts'),
+            where('writeOffDate', '>=', date.from.toISOString()),
+            where('writeOffDate', '<=', date.to.toISOString())
+        );
+    }, [firestore, user, date]);
+    const { data: badDebts, isLoading: isLoadingBadDebts } = useCollection<BadDebt>(badDebtsQuery);
+
+    const orderItemsQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return collection(firestore, 'orderItems');
+    }, [firestore, user]);
+    const { data: allOrderItems, isLoading: isLoadingOrderItems } = useCollection<OrderItem>(orderItemsQuery);
+
+    const isLoading = isLoadingOrders || isLoadingExpenses || isLoadingBadDebts || isLoadingOrderItems;
 
     const reportData = useMemo(() => {
-        if (!date?.from || !date?.to) {
+        if (!orders || !allOrderItems || !expenses || !badDebts) {
              return { revenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, badDebtExpense: 0, netProfit: 0 };
         }
         
-        const ordersInDateRange = staticOrders.filter(o => 
-            o.orderStatus !== 'Cancelled' && isWithinInterval(new Date(o.orderDate), { start: date.from!, end: date.to! })
-        );
+        const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
 
-        const totalRevenue = ordersInDateRange.reduce((sum, order) => sum + order.totalAmount, 0);
-
-        const orderIds = new Set(ordersInDateRange.map(o => o.id));
-        const relevantOrderItems = staticOrderItems.filter(item => orderIds.has(item.orderId));
+        const orderIds = new Set(orders.map(o => o.id));
+        const relevantOrderItems = allOrderItems.filter(item => orderIds.has(item.orderId));
         
         const totalCogs = relevantOrderItems.reduce((sum, item) => sum + (item.costPriceAtSale * item.quantity), 0);
 
-        const expensesInDateRange = staticExpenses.filter(e => isWithinInterval(new Date(e.expenseDate), { start: date.from!, end: date.to! }));
-        const operatingExpenses = expensesInDateRange.reduce((sum, expense) => {
+        const operatingExpenses = expenses.reduce((sum, expense) => {
             if (expense.category.toLowerCase() !== 'cost of goods sold') {
                 return sum + expense.amount;
             }
             return sum;
         }, 0);
         
-        const badDebtsInDateRange = staticBadDebts.filter(d => isWithinInterval(new Date(d.writeOffDate), { start: date.from!, end: date.to! }));
-        const totalBadDebt = badDebtsInDateRange.reduce((sum, debt) => sum + debt.amount, 0);
+        const totalBadDebt = badDebts.reduce((sum, debt) => sum + debt.amount, 0);
 
         const grossProfit = totalRevenue - totalCogs;
         const netProfit = grossProfit - operatingExpenses - totalBadDebt;
@@ -98,7 +114,7 @@ export function PnlReport() {
             badDebtExpense: totalBadDebt,
             netProfit,
         };
-    }, [date]);
+    }, [orders, allOrderItems, expenses, badDebts]);
 
     const ReportItem = ({ label, value, isBold = false, isNegative = false }: { label: string; value: number; isBold?: boolean; isNegative?: boolean; }) => (
         <div className={`flex justify-between py-2 ${isBold ? 'font-bold' : ''}`}>
@@ -111,7 +127,7 @@ export function PnlReport() {
         <Card>
             <CardHeader>
                 <CardTitle className="font-headline">Profit &amp; Loss Statement</CardTitle>
-                <CardDescription>An accrual-based P&amp;L report for the selected period. (Currently showing static data)</CardDescription>
+                <CardDescription>An accrual-based P&amp;L report for the selected period.</CardDescription>
             </CardHeader>
             <CardContent>
                 <ReportDateFilter date={date} setDate={setDate} />
