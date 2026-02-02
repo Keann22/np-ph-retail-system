@@ -12,7 +12,7 @@ import {
     TableRow,
   } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 
 type Order = {
     id: string;
@@ -34,16 +34,18 @@ export function AccountsReceivableReport() {
     const { user } = useUser();
 
     // Fetch all orders and filter on the client
-    const arOrdersQuery = useMemoFirebase(() => {
+    const allOrdersQuery = useMemoFirebase(() => {
         if (!firestore || !user) return null;
-        return query(
-            collection(firestore, 'orders'),
-            where('paymentType', '==', 'Installment'),
-            where('balanceDue', '>', 0)
-        );
+        return collection(firestore, 'orders');
     }, [firestore, user]);
-    const { data: arOrders, isLoading: isLoadingOrders } = useCollection<Order>(arOrdersQuery);
+    const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(allOrdersQuery);
     
+    // Client-side filtering for A/R orders
+    const arOrders = useMemo(() => {
+        if (!allOrders) return [];
+        return allOrders.filter(order => order.paymentType === 'Installment' && order.balanceDue > 0);
+    }, [allOrders]);
+
     const customersQuery = useMemoFirebase(() => {
         if (!firestore || !user) return null;
         return collection(firestore, 'customers');
