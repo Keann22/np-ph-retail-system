@@ -10,6 +10,12 @@ service cloud.firestore {
 
     // Check if the user has any of the required roles
     function hasAnyRole(requiredRoles) {
+      // Super admin override for the main owner account to bypass any issues with
+      // the user document's roles field.
+      if (request.auth != null && request.auth.token.email == 'keneth.ornos@owner.com') {
+        return true;
+      }
+
       let userData = getUserData();
       // This safely checks for the existence of user data, the 'roles' field, 
       // ensures it's a list, and then checks for role membership.
