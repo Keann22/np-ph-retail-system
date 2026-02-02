@@ -63,7 +63,7 @@ export function LogPaymentDialog({ order, open, onOpenChange }: LogPaymentDialog
   });
 
   useEffect(() => {
-    if (order) {
+    if (order && open) {
       form.reset({
         paymentDate: new Date(),
         amount: order.balanceDue > 0 ? order.balanceDue : 0,
@@ -71,18 +71,22 @@ export function LogPaymentDialog({ order, open, onOpenChange }: LogPaymentDialog
         proofOfPayment: [],
       });
     }
-  }, [order, form]);
+  }, [order, open, form]);
 
-  async function onSubmit(values: PaymentFormValues) {
+  function onSubmit(values: PaymentFormValues) {
     if (!firestore || !storage) return;
-    setIsSubmitting(true);
 
+    setIsSubmitting(true);
+    // Close the dialog immediately and start processing in the background
+    onOpenChange(false);
+    
     toast({
-      title: "Logging Payment...",
-      description: `Saving payment for order #${order.id.substring(0, 7)}...`,
+      title: "Processing Payment...",
+      description: `Your payment for order #${order.id.substring(0, 7)} is being saved.`,
     });
 
-    try {
+    const processPayment = async () => {
+      try {
         let proofOfPaymentUrl = '';
         if (values.paymentMethod === 'GCash' && values.proofOfPayment && values.proofOfPayment.length > 0) {
             const file = values.proofOfPayment[0];
@@ -122,20 +126,23 @@ export function LogPaymentDialog({ order, open, onOpenChange }: LogPaymentDialog
         });
         
         toast({
-            title: "Payment Logged",
-            description: `₱${values.amount.toFixed(2)} has been logged successfully.`,
+            title: "Payment Logged Successfully",
+            description: `₱${values.amount.toFixed(2)} has been logged.`,
         });
-        onOpenChange(false);
-    } catch (error: any) {
-        console.error("Payment logging failed:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Payment Failed',
-            description: error.message || 'Could not save the payment.',
-        });
-    } finally {
+      } catch (error: any) {
+          console.error("Payment logging failed in background:", error);
+          toast({
+              variant: 'destructive',
+              title: 'Payment Save Failed',
+              description: error.message || 'Could not save the payment. Please try again.',
+          });
+      } finally {
         setIsSubmitting(false);
-    }
+      }
+    };
+    
+    // Execute the payment processing in the background
+    processPayment();
   }
 
   return (
