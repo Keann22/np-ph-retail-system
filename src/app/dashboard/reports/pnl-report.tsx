@@ -14,12 +14,16 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
+import { cn } from '@/lib/utils';
 
+// --- Data Types ---
 type Order = {
     id: string;
+    subtotal: number;
+    totalDiscount: number;
     totalAmount: number;
     orderDate: string;
-    orderStatus: string;
+    orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled' | 'Returned';
 };
 
 type OrderItem = {
@@ -39,6 +43,12 @@ type BadDebt = {
     writeOffDate: string;
 }
 
+type Refund = {
+    amount: number;
+    refundDate: string;
+}
+
+// --- Report Component ---
 export function PnlReport() {
     const [date, setDate] = useState<DateRange | undefined>({
         from: startOfMonth(new Date()),
@@ -48,78 +58,87 @@ export function PnlReport() {
     const firestore = useFirestore();
     const { user } = useUser();
 
-    // Queries - Fetch all data and filter on the client
-    const allOrdersQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, 'orders'));
-    }, [firestore, user]);
+    // --- Data Fetching ---
+    // Fetch all documents and filter on the client-side for consistency and to avoid complex queries.
+    const allOrdersQuery = useMemoFirebase(() => (firestore && user ? query(collection(firestore, 'orders')) : null), [firestore, user]);
+    const allExpensesQuery = useMemoFirebase(() => (firestore && user ? query(collection(firestore, 'expenses')) : null), [firestore, user]);
+    const allBadDebtsQuery = useMemoFirebase(() => (firestore && user ? query(collection(firestore, 'badDebts')) : null), [firestore, user]);
+    const allOrderItemsQuery = useMemoFirebase(() => (firestore && user ? query(collection(firestore, 'orderItems')) : null), [firestore, user]);
+    const allRefundsQuery = useMemoFirebase(() => (firestore && user ? query(collection(firestore, 'refunds')) : null), [firestore, user]);
+
     const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(allOrdersQuery);
-
-    const allExpensesQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, 'expenses'));
-    }, [firestore, user]);
     const { data: allExpenses, isLoading: isLoadingExpenses } = useCollection<Expense>(allExpensesQuery);
-
-    const allBadDebtsQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, 'badDebts'));
-    }, [firestore, user]);
     const { data: allBadDebts, isLoading: isLoadingBadDebts } = useCollection<BadDebt>(allBadDebtsQuery);
-
-    const allOrderItemsQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return collection(firestore, 'orderItems');
-    }, [firestore, user]);
     const { data: allOrderItems, isLoading: isLoadingOrderItems } = useCollection<OrderItem>(allOrderItemsQuery);
-
-    const isLoading = isLoadingOrders || isLoadingExpenses || isLoadingBadDebts || isLoadingOrderItems;
+    const { data: allRefunds, isLoading: isLoadingRefunds } = useCollection<Refund>(allRefundsQuery);
     
-    // Client-side filtering
-    const orders = useMemo(() => {
-        if (!allOrders || !date?.from || !date?.to) return null;
-        const fromTime = date.from.getTime();
-        const toTime = date.to.getTime();
-        return allOrders.filter(order => {
-            const orderTime = new Date(order.orderDate).getTime();
-            return orderTime >= fromTime && orderTime <= toTime && order.orderStatus !== 'Cancelled' && order.orderStatus !== 'Returned';
-        });
-    }, [allOrders, date]);
+    const isLoading = isLoadingOrders || isLoadingExpenses || isLoadingBadDebts || isLoadingOrderItems || isLoadingRefunds;
 
-    const expenses = useMemo(() => {
-        if (!allExpenses || !date?.from || !date?.to) return null;
-        const fromTime = date.from.getTime();
-        const toTime = date.to.getTime();
-        return allExpenses.filter(expense => {
-            const expenseTime = new Date(expense.expenseDate).getTime();
-            return expenseTime >= fromTime && expenseTime <= toTime;
-        });
-    }, [allExpenses, date]);
-    
-    const badDebts = useMemo(() => {
-        if (!allBadDebts || !date?.from || !date?.to) return null;
-        const fromTime = date.from.getTime();
-        const toTime = date.to.getTime();
-        return allBadDebts.filter(debt => {
-            const debtTime = new Date(debt.writeOffDate).getTime();
-            return debtTime >= fromTime && debtTime <= toTime;
-        });
-    }, [allBadDebts, date]);
-
-
+    // --- Data Processing & Calculation ---
     const reportData = useMemo(() => {
-        if (!orders || !allOrderItems || !expenses || !badDebts) {
-             return { revenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, operatingExpensesBreakdown: {} as Record<string, number>, badDebtExpense: 0, netProfit: 0 };
+        const defaults = {
+            grossSales: 0,
+            salesReturns: 0,
+            salesDiscounts: 0,
+            netSales: 0,
+            cogs: 0,
+            grossProfit: 0,
+            operatingExpenses: 0,
+            operatingExpensesBreakdown: {} as Record<string, number>,
+            badDebtExpense: 0,
+            refundsExpense: 0,
+            totalOtherLosses: 0,
+            netProfit: 0,
+        };
+
+        if (!allOrders || !allOrderItems || !allExpenses || !allBadDebts || !allRefunds || !date?.from || !date?.to) {
+             return defaults;
         }
         
-        const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
-
-        const orderIds = new Set(orders.map(o => o.id));
-        const relevantOrderItems = allOrderItems.filter(item => orderIds.has(item.orderId));
+        const fromTime = date.from.getTime();
+        const toTime = date.to.getTime();
         
-        const totalCogs = relevantOrderItems.reduce((sum, item) => sum + ((item.costPriceAtSale || 0) * (item.quantity || 0)), 0);
+        // Filter all data sources by the selected date range
+        const periodOrders = allOrders.filter(o => {
+            const orderTime = new Date(o.orderDate).getTime();
+            return orderTime >= fromTime && orderTime <= toTime;
+        });
+        
+        const periodExpenses = allExpenses.filter(e => {
+            const expenseTime = new Date(e.expenseDate).getTime();
+            return expenseTime >= fromTime && expenseTime <= toTime;
+        });
 
-        const operatingExpensesBreakdown = expenses.reduce((acc, expense) => {
+        const periodBadDebts = allBadDebts.filter(d => {
+            const debtTime = new Date(d.writeOffDate).getTime();
+            return debtTime >= fromTime && debtTime <= toTime;
+        });
+
+        const periodRefunds = allRefunds.filter(r => {
+            const refundTime = new Date(r.refundDate).getTime();
+            return refundTime >= fromTime && refundTime <= toTime;
+        });
+
+
+        // 1. Revenue Calculation
+        const validOrders = periodOrders.filter(o => o.orderStatus !== 'Cancelled' && o.orderStatus !== 'Returned');
+        const returnedOrders = periodOrders.filter(o => o.orderStatus === 'Cancelled' || o.orderStatus === 'Returned');
+        
+        const grossSales = validOrders.reduce((sum, order) => sum + (order.subtotal || order.totalAmount + (order.totalDiscount || 0)), 0);
+        const salesDiscounts = validOrders.reduce((sum, order) => sum + (order.totalDiscount || 0), 0);
+        const salesReturns = returnedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+        const netSales = grossSales - salesDiscounts; // Net Sales before returns for the Gross Profit calculation
+
+        // 2. COGS Calculation
+        const validOrderIds = new Set(validOrders.map(o => o.id));
+        const relevantOrderItems = allOrderItems.filter(item => validOrderIds.has(item.orderId));
+        const cogs = relevantOrderItems.reduce((sum, item) => sum + ((item.costPriceAtSale || 0) * (item.quantity || 0)), 0);
+
+        // 3. Gross Profit
+        const grossProfit = netSales - cogs;
+
+        // 4. Operating Expenses
+        const operatingExpensesBreakdown = periodExpenses.reduce((acc, expense) => {
             if (expense.category.toLowerCase() !== 'cost of goods sold') {
                 if (!acc[expense.category]) {
                     acc[expense.category] = 0;
@@ -128,29 +147,36 @@ export function PnlReport() {
             }
             return acc;
         }, {} as Record<string, number>);
+        const operatingExpenses = Object.values(operatingExpensesBreakdown).reduce((sum, amount) => sum + amount, 0);
 
-        const totalOperatingExpenses = Object.values(operatingExpensesBreakdown).reduce((sum, amount) => sum + amount, 0);
+        // 5. Other Losses
+        const badDebtExpense = periodBadDebts.reduce((sum, debt) => sum + debt.amount, 0);
+        const refundsExpense = periodRefunds.reduce((sum, refund) => sum + refund.amount, 0);
+        const totalOtherLosses = badDebtExpense + refundsExpense + salesReturns; // Returns are treated as a loss against gross profit
 
-        const totalBadDebt = badDebts.reduce((sum, debt) => sum + debt.amount, 0);
-
-        const grossProfit = totalRevenue - totalCogs;
-        const netProfit = grossProfit - totalOperatingExpenses - totalBadDebt;
+        // 6. Net Profit
+        const netProfit = grossProfit - operatingExpenses - totalOtherLosses;
 
         return {
-            revenue: totalRevenue,
-            cogs: totalCogs,
+            grossSales,
+            salesReturns,
+            salesDiscounts,
+            netSales,
+            cogs,
             grossProfit,
-            operatingExpenses: totalOperatingExpenses,
+            operatingExpenses,
             operatingExpensesBreakdown,
-            badDebtExpense: totalBadDebt,
+            badDebtExpense,
+            refundsExpense,
+            totalOtherLosses,
             netProfit,
         };
-    }, [orders, allOrderItems, expenses, badDebts]);
+    }, [allOrders, allOrderItems, allExpenses, allBadDebts, allRefunds, date]);
 
-    const ReportItem = ({ label, value, isBold = false, isNegative = false }: { label: string; value: number; isBold?: boolean; isNegative?: boolean; }) => (
-        <div className={`flex justify-between py-2 ${isBold ? 'font-bold' : ''}`}>
+    const ReportItem = ({ label, value, isBold = false, isNegative = false, isSubItem = false, isFinal = false }: { label: string; value: number; isBold?: boolean; isNegative?: boolean; isSubItem?: boolean; isFinal?: boolean }) => (
+        <div className={cn("flex justify-between py-2", isBold && "font-bold", isSubItem && "pl-4 text-sm")}>
             <span>{label}</span>
-            <span className={isNegative ? 'text-destructive' : ''}>₱{value.toFixed(2)}</span>
+            <span className={cn(isNegative && 'text-destructive', isFinal && 'border-t-2 border-b-4 double border-foreground py-1 my-1')}>{`₱${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</span>
         </div>
     );
     
@@ -158,32 +184,46 @@ export function PnlReport() {
         <Card>
             <CardHeader>
                 <CardTitle className="font-headline">Profit &amp; Loss Statement</CardTitle>
-                <CardDescription>An accrual-based P&amp;L report for the selected period.</CardDescription>
+                <CardDescription>An accrual-based P&amp;L report for the selected period, reflecting your business operations.</CardDescription>
             </CardHeader>
             <CardContent>
                 <ReportDateFilter date={date} setDate={setDate} />
                 {isLoading ? (
-                    <div className="space-y-4 mt-4">
-                        <Skeleton className="h-8 w-3/4" />
-                        <Skeleton className="h-8 w-1/2" />
-                        <Skeleton className="h-8 w-3/4" />
+                    <div className="space-y-4 mt-4 max-w-2xl mx-auto">
                         <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-1/2" />
-                        <Skeleton className="h-8 w-3/4" />
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                        <Separator />
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                        <Separator />
+                        <Skeleton className="h-10 w-full" />
                     </div>
                 ) : (
-                    <div className="max-w-2xl mx-auto mt-4">
-                        <ReportItem label="Total Revenue" value={reportData.revenue} />
-                        <ReportItem label="Cost of Goods Sold (COGS)" value={-reportData.cogs} />
-                        <Separator />
+                    <div className="max-w-2xl mx-auto mt-4 text-base">
+                        <h3 className='font-bold text-lg mb-2'>Revenue</h3>
+                        <ReportItem label="Gross Sales" value={reportData.grossSales} isSubItem />
+                        <ReportItem label="Less: Sales Discounts" value={-reportData.salesDiscounts} isSubItem />
+                        <ReportItem label="Net Sales" value={reportData.netSales} isBold />
+                        
+                        <Separator className='my-4'/>
+
+                        <h3 className='font-bold text-lg mb-2'>Cost of Goods Sold</h3>
+                        <ReportItem label="Total FIFO COGS" value={-reportData.cogs} />
+                        
+                        <Separator className='my-4' />
+
                         <ReportItem label="Gross Profit" value={reportData.grossProfit} isBold />
-                        <Separator />
+
+                        <Separator className='my-4' />
+
+                        <h3 className='font-bold text-lg mb-2'>Operating Expenses</h3>
                         <Accordion type="single" collapsible className="w-full">
-                            <AccordionItem value="operating-expenses" className="border-b-0">
+                            <AccordionItem value="operating-expenses" className="border-b-0 -my-2">
                                 <AccordionTrigger className="py-2 font-normal hover:no-underline">
                                 <div className="flex flex-1 justify-between">
-                                    <span>Operating Expenses</span>
-                                    <span>₱{(-reportData.operatingExpenses).toFixed(2)}</span>
+                                    <span>Total Operating Expenses</span>
+                                    <span>{`₱${(-reportData.operatingExpenses).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</span>
                                 </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="pl-8 pt-2">
@@ -192,15 +232,23 @@ export function PnlReport() {
                                     .map(([category, amount]) => (
                                     <div key={category} className="flex justify-between py-1 text-sm text-muted-foreground">
                                         <span>{category}</span>
-                                        <span>₱{(-amount).toFixed(2)}</span>
+                                        <span>{`₱${(-amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</span>
                                     </div>
                                     ))}
                                 </AccordionContent>
                             </AccordionItem>
                         </Accordion>
-                        <ReportItem label="Bad Debt Expense" value={-reportData.badDebtExpense} />
-                        <Separator />
-                        <ReportItem label="Net Profit" value={reportData.netProfit} isBold isNegative={reportData.netProfit < 0} />
+                        
+                        <Separator className='my-4' />
+
+                        <h3 className='font-bold text-lg mb-2'>Other Losses & Adjustments</h3>
+                        <ReportItem label="Sales Returns & Allowances" value={-reportData.salesReturns} isSubItem />
+                        <ReportItem label="Bad Debt Expense" value={-reportData.badDebtExpense} isSubItem />
+                        <ReportItem label="Refunds" value={-reportData.refundsExpense} isSubItem />
+                        
+                        <Separator className='my-4' />
+                        
+                        <ReportItem label="Net Profit" value={reportData.netProfit} isBold isNegative={reportData.netProfit < 0} isFinal/>
                     </div>
                 )}
             </CardContent>
