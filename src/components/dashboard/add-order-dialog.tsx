@@ -26,6 +26,10 @@ const orderItemSchema = z.object({
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   costPriceAtSale: z.coerce.number(),
   sellingPriceAtSale: z.coerce.number().min(0, "Price cannot be negative"),
+  discount: z.coerce.number().min(0, "Discount must be non-negative").optional(),
+}).refine(data => (data.discount || 0) <= data.sellingPriceAtSale, {
+    message: "Discount cannot be greater than the selling price.",
+    path: ["discount"],
 });
 
 const orderSchema = z.object({
@@ -188,7 +192,17 @@ export function AddOrderDialog() {
     name: "orderItems"
   });
 
-  const totalAmount = form.watch('orderItems').reduce((total, item) => total + (item.sellingPriceAtSale * item.quantity), 0);
+  const { subtotal, totalDiscount } = form.watch('orderItems').reduce((acc, item) => {
+    const itemPrice = item.sellingPriceAtSale || 0;
+    const itemDiscount = item.discount || 0;
+    const itemQty = item.quantity || 0;
+    
+    acc.subtotal += itemPrice * itemQty;
+    acc.totalDiscount += itemDiscount * itemQty;
+    return acc;
+  }, { subtotal: 0, totalDiscount: 0 });
+
+  const totalAmount = subtotal - totalDiscount;
 
   useEffect(() => {
     if (form.watch('paymentType') === 'Full Payment') {
@@ -212,7 +226,17 @@ export function AddOrderDialog() {
         const orderItemsCollection = collection(firestore, 'orderItems');
         const inventoryMovementsCollection = collection(firestore, 'inventoryMovements');
 
-        const totalAmount = values.orderItems.reduce((total, item) => total + (item.sellingPriceAtSale * item.quantity), 0);
+        const { subtotal, totalDiscount } = values.orderItems.reduce((acc, item) => {
+            const itemPrice = item.sellingPriceAtSale || 0;
+            const itemDiscount = item.discount || 0;
+            const itemQty = item.quantity || 0;
+        
+            acc.subtotal += itemPrice * itemQty;
+            acc.totalDiscount += itemDiscount * itemQty;
+            return acc;
+        }, { subtotal: 0, totalDiscount: 0 });
+
+        const totalAmount = subtotal - totalDiscount;
         const balanceDue = totalAmount - (values.amountPaid ?? 0);
 
         const newOrderRef = doc(ordersCollection);
@@ -254,8 +278,6 @@ export function AddOrderDialog() {
           }
           
           const newQuantityOnHand = productData.quantityOnHand - item.quantity;
-          // This calculation correctly handles cases with partial or no stock.
-          // If no stock is available, costPriceAtSale will be 0.
           const costPriceAtSale = item.quantity > 0 ? totalCostOfGoods / item.quantity : 0;
 
           transaction.update(productRef, {
@@ -263,9 +285,10 @@ export function AddOrderDialog() {
             stockBatches: updatedBatches,
           });
 
+          const { costPriceAtSale: _, ...itemToSave } = item;
           const newOrderItemRef = doc(orderItemsCollection);
           transaction.set(newOrderItemRef, { 
-            ...item, 
+            ...itemToSave, 
             id: newOrderItemRef.id,
             orderId: newOrderRef.id,
             costPriceAtSale: isNaN(costPriceAtSale) ? 0 : costPriceAtSale
@@ -289,6 +312,8 @@ export function AddOrderDialog() {
           installmentMonths: values.paymentType === 'Installment' ? installmentMonths : null,
           id: newOrderRef.id,
           orderDate: values.orderDate.toISOString(),
+          subtotal,
+          totalDiscount,
           totalAmount,
           balanceDue,
           salesPersonId: userProfile.id,
@@ -469,16 +494,24 @@ export function AddOrderDialog() {
                 <div className="md:col-span-2 space-y-4">
                     <div>
                         <FormLabel>Order Items</FormLabel>
-                        <div className="space-y-2 mt-2 rounded-lg border p-2">
+                        <div className="space-y-2 mt-2 rounded-lg border">
+                           <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 p-2 font-medium text-muted-foreground text-sm">
+                                <span>Product</span>
+                                <span className="text-right">Qty</span>
+                                <span className="text-right">Price</span>
+                                <span className="text-right">Discount</span>
+                                <span className="sr-only">Remove</span>
+                           </div>
                            {fields.map((field, index) => (
-                             <div key={field.id} className="flex gap-2 items-end p-2 rounded-md bg-muted/50">
-                                <p className="flex-1 text-sm font-medium">{field.productName}</p>
-                                <FormField control={form.control} name={`orderItems.${index}.quantity`} render={({ field }) => (<FormItem><FormControl><Input type="number" className="h-8 w-20" {...field} /></FormControl></FormItem>)} />
-                                <FormField control={form.control} name={`orderItems.${index}.sellingPriceAtSale`} render={({ field }) => (<FormItem><FormControl><Input type="number" step="0.01" className="h-8 w-24" {...field} /></FormControl></FormItem>)} />
+                             <div key={field.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 items-center px-2 pb-2">
+                                <p className="flex-1 text-sm font-medium truncate pr-2">{field.productName}</p>
+                                <FormField control={form.control} name={`orderItems.${index}.quantity`} render={({ field }) => (<FormItem><FormControl><Input type="number" className="h-8 w-20 text-right" {...field} /></FormControl></FormItem>)} />
+                                <FormField control={form.control} name={`orderItems.${index}.sellingPriceAtSale`} render={({ field }) => (<FormItem><FormControl><Input type="number" step="0.01" className="h-8 w-24 text-right" {...field} /></FormControl></FormItem>)} />
+                                <FormField control={form.control} name={`orderItems.${index}.discount`} render={({ field }) => (<FormItem><FormControl><Input type="number" step="0.01" className="h-8 w-24 text-right" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value === '' ? 0 : e.target.value)} value={field.value ?? 0} /></FormControl><FormMessage /></FormItem>)} />
                                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button>
                              </div>
                            ))}
-                           {fields.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No items added to order.</p>}
+                           {fields.length === 0 && <p className="text-sm text-center text-muted-foreground py-8">No items added to order.</p>}
                         </div>
                         <FormMessage>{form.formState.errors.orderItems?.message || form.formState.errors.orderItems?.root?.message}</FormMessage>
                     </div>
@@ -513,7 +546,6 @@ export function AddOrderDialog() {
                                             
                                             const productToAdd = productResults.find(prod => prod.id === p.id);
                                             if (productToAdd) {
-                                                // Simplified cost for UI display, actual cost is calculated in the backend transaction
                                                 const costPriceAtSale = productToAdd.stockBatches?.length > 0
                                                     ? productToAdd.stockBatches[0].unitCost
                                                     : 0;
@@ -524,6 +556,7 @@ export function AddOrderDialog() {
                                                     quantity: 1,
                                                     costPriceAtSale: costPriceAtSale,
                                                     sellingPriceAtSale: productToAdd.sellingPrice,
+                                                    discount: 0
                                                 });
                                             }
                                             setProductSearch('');
@@ -543,8 +576,9 @@ export function AddOrderDialog() {
                         )}
                     </Command>
                     
-                    <div className="pt-4 space-y-2">
-                        <div className="flex justify-between"><p className="text-muted-foreground">Subtotal</p><p>₱{totalAmount.toFixed(2)}</p></div>
+                    <div className="pt-4 space-y-2 text-right">
+                        <div className="flex justify-between"><p className="text-muted-foreground">Subtotal</p><p>₱{subtotal.toFixed(2)}</p></div>
+                        <div className="flex justify-between text-destructive"><p className="text-destructive">Discount</p><p>- ₱{totalDiscount.toFixed(2)}</p></div>
                         <div className="flex justify-between font-bold text-lg"><p>Total</p><p>₱{totalAmount.toFixed(2)}</p></div>
                     </div>
                 </div>

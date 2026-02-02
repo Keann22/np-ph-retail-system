@@ -271,6 +271,14 @@
           "description": "The date the order was placed.",
           "format": "date-time"
         },
+        "subtotal": {
+          "type": "number",
+          "description": "The order total before any discounts."
+        },
+        "totalDiscount": {
+          "type": "number",
+          "description": "The total discount applied to the order."
+        },
         "totalAmount": {
           "type": "number",
           "description": "The total amount of the order."
@@ -345,6 +353,10 @@
         "sellingPriceAtSale": {
           "type": "number",
           "description": "The selling price of the product at the time of the sale."
+        },
+        "discount": {
+          "type": "number",
+          "description": "The per-unit discount amount for this item."
         }
       },
       "required": [
