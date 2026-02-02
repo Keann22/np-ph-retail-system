@@ -33,6 +33,7 @@ export function AccountsReceivableReport() {
     const firestore = useFirestore();
     const { user } = useUser();
 
+    // Fetch all orders and filter on the client
     const arOrdersQuery = useMemoFirebase(() => {
         if (!firestore || !user) return null;
         return query(

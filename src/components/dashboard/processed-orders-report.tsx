@@ -8,7 +8,6 @@ import {
   startOfYesterday,
   endOfYesterday,
   format,
-  endOfDay,
 } from 'date-fns';
 import { Calendar as CalendarIcon, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -65,16 +64,14 @@ export function ProcessedOrdersReport() {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const ordersQuery = useMemoFirebase(() => {
-      if (!firestore || !user || !date?.from || !date.to) return null;
+  const allOrdersQuery = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
       return query(
           collection(firestore, 'orders'),
-          where('orderStatus', '==', 'Processing'),
-          where('orderDate', '>=', date.from.toISOString()),
-          where('orderDate', '<=', date.to.toISOString())
+          where('orderStatus', '==', 'Processing')
       );
-  }, [firestore, user, date]);
-  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+  }, [firestore, user]);
+  const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(allOrdersQuery);
 
   const customersQuery = useMemoFirebase(() => {
       if (!firestore || !user) return null;
@@ -83,6 +80,16 @@ export function ProcessedOrdersReport() {
   const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
 
   const isLoading = isLoadingOrders || isLoadingCustomers;
+
+  const orders = useMemo(() => {
+    if (!allOrders || !date?.from || !date?.to) return [];
+    const fromTime = date.from.getTime();
+    const toTime = date.to.getTime();
+    return allOrders.filter(order => {
+        const orderTime = new Date(order.orderDate).getTime();
+        return orderTime >= fromTime && orderTime <= toTime;
+    });
+  }, [allOrders, date]);
 
   const customerMap = useMemo(() => {
     if (!customers) return new Map();

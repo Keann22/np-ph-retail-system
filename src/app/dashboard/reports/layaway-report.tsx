@@ -34,6 +34,7 @@ export function LayawayReport() {
     const firestore = useFirestore();
     const { user } = useUser();
 
+    // Fetch all layaway orders and filter on the client
     const layawayOrdersQuery = useMemoFirebase(() => {
         if (!firestore || !user) return null;
         return query(

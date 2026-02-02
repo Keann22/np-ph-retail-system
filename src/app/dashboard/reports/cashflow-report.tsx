@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
 import { startOfMonth, endOfMonth } from 'date-fns';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ReportDateFilter } from './report-date-filter';
@@ -35,40 +35,58 @@ export function CashFlowReport() {
     const firestore = useFirestore();
     const { user } = useUser();
 
-    const paymentsQuery = useMemoFirebase(() => {
-        if (!firestore || !user || !date?.from || !date?.to) return null;
-        return query(
-            collection(firestore, 'payments'),
-            where('paymentDate', '>=', date.from.toISOString()),
-            where('paymentDate', '<=', date.to.toISOString())
-        );
-    }, [firestore, user, date]);
+    // Fetch all data and filter on the client
+    const allPaymentsQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return collection(firestore, 'payments');
+    }, [firestore, user]);
     
-    const expensesQuery = useMemoFirebase(() => {
-        if (!firestore || !user || !date?.from || !date?.to) return null;
-        return query(
-            collection(firestore, 'expenses'),
-            where('expenseDate', '>=', date.from.toISOString()),
-            where('expenseDate', '<=', date.to.toISOString())
-        );
-    }, [firestore, user, date]);
+    const allExpensesQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return collection(firestore, 'expenses');
+    }, [firestore, user]);
     
-    const refundsQuery = useMemoFirebase(() => {
-        if (!firestore || !user || !date?.from || !date?.to) return null;
-        return query(
-            collection(firestore, 'refunds'),
-            where('refundDate', '>=', date.from.toISOString()),
-            where('refundDate', '<=', date.to.toISOString())
-        );
-    }, [firestore, user, date]);
+    const allRefundsQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return collection(firestore, 'refunds');
+    }, [firestore, user]);
 
-
-    const { data: payments, isLoading: isLoadingPayments } = useCollection<Payment>(paymentsQuery);
-    const { data: expenses, isLoading: isLoadingExpenses } = useCollection<Expense>(expensesQuery);
-    const { data: refunds, isLoading: isLoadingRefunds } = useCollection<Refund>(refundsQuery);
+    const { data: allPayments, isLoading: isLoadingPayments } = useCollection<Payment>(allPaymentsQuery);
+    const { data: allExpenses, isLoading: isLoadingExpenses } = useCollection<Expense>(allExpensesQuery);
+    const { data: allRefunds, isLoading: isLoadingRefunds } = useCollection<Refund>(allRefundsQuery);
 
     const isLoading = isLoadingPayments || isLoadingExpenses || isLoadingRefunds;
 
+    // Client-side filtering
+    const payments = useMemo(() => {
+        if (!allPayments || !date?.from || !date?.to) return null;
+        const fromTime = date.from.getTime();
+        const toTime = date.to.getTime();
+        return allPayments.filter(payment => {
+            const paymentTime = new Date(payment.paymentDate).getTime();
+            return paymentTime >= fromTime && paymentTime <= toTime;
+        });
+    }, [allPayments, date]);
+
+    const expenses = useMemo(() => {
+        if (!allExpenses || !date?.from || !date?.to) return null;
+        const fromTime = date.from.getTime();
+        const toTime = date.to.getTime();
+        return allExpenses.filter(expense => {
+            const expenseTime = new Date(expense.expenseDate).getTime();
+            return expenseTime >= fromTime && expenseTime <= toTime;
+        });
+    }, [allExpenses, date]);
+
+    const refunds = useMemo(() => {
+        if (!allRefunds || !date?.from || !date?.to) return null;
+        const fromTime = date.from.getTime();
+        const toTime = date.to.getTime();
+        return allRefunds.filter(refund => {
+            const refundTime = new Date(refund.refundDate).getTime();
+            return refundTime >= fromTime && refundTime <= toTime;
+        });
+    }, [allRefunds, date]);
 
     const reportData = useMemo(() => {
         if (!payments || !expenses || !refunds) {
