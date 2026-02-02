@@ -90,7 +90,7 @@ service cloud.firestore {
     }
 
     match /expenses/{expenseId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }

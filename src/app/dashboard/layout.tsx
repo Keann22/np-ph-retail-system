@@ -5,6 +5,7 @@ import {
   Archive,
   ArrowDownUp,
   Bell,
+  BookCopy,
   Building,
   ChevronDown,
   Home,
@@ -17,6 +18,7 @@ import {
   ShoppingCart,
   Truck,
   Users,
+  Wallet,
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -50,6 +52,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
 
   const [openInventory, setOpenInventory] = useState(false);
+  const [openAccounting, setOpenAccounting] = useState(false);
 
   // The pending orders query that was causing permission errors has been removed for stability.
   // The badge feature can be re-introduced later with a more robust data fetching strategy.
@@ -59,9 +62,9 @@ export default function DashboardLayout({
     { href: '/dashboard', label: 'Dashboard', icon: Home },
     { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, badge: pendingOrdersCount && pendingOrdersCount > 0 ? pendingOrdersCount : null },
     { href: '/dashboard/products', label: 'Products', icon: Package },
-    { 
+    {
         id: 'inventory',
-        label: 'Inventory Management', 
+        label: 'Inventory Management',
         icon: Archive,
         isOpen: openInventory,
         setIsOpen: setOpenInventory,
@@ -71,6 +74,16 @@ export default function DashboardLayout({
             { href: '/dashboard/inventory/restock', label: 'Restock / Purchase', icon: ArrowDownUp },
             { href: '/dashboard/inventory/batches', label: 'Stock Batch List', icon: ListChecks }
         ]
+    },
+    {
+      id: 'accounting',
+      label: 'Accounting',
+      icon: BookCopy,
+      isOpen: openAccounting,
+      setIsOpen: setOpenAccounting,
+      subItems: [
+          { href: '/dashboard/accounting/expenses', label: 'Expenses', icon: Wallet }
+      ]
     },
     { href: '/dashboard/customers', label: 'Customers', icon: Users },
     { href: '/dashboard/suppliers', label: 'Suppliers', icon: Building },
@@ -82,6 +95,9 @@ export default function DashboardLayout({
     // If the current path is under inventory, open the collapsible
     if (pathname.startsWith('/dashboard/inventory')) {
       setOpenInventory(true);
+    }
+    if (pathname.startsWith('/dashboard/accounting')) {
+      setOpenAccounting(true);
     }
   }, [pathname]);
 
