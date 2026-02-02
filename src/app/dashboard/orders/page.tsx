@@ -38,6 +38,9 @@ import { format } from 'date-fns';
 import { useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { LogPaymentDialog } from '@/components/dashboard/log-payment-dialog';
+import { useCollection, useFirestore, useMemoFirebase, useUser, updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
+
 
 // Matches the Firestore document structure for an order
 export type Order = {
@@ -51,13 +54,18 @@ export type Order = {
   paymentType: 'Full Payment' | 'Lay-away' | 'Installment';
 };
 
-// Placeholder data to prevent crash
-const staticOrders: (Order & {customerName: string})[] = [
-    { id: '1', customerId: '1', customerName: 'Olivia Martin', orderDate: new Date(2024, 6, 15).toISOString(), totalAmount: 1999.00, amountPaid: 1999.00, balanceDue: 0, orderStatus: 'Completed', paymentType: 'Full Payment' },
-    { id: '2', customerId: '2', customerName: 'Jackson Lee', orderDate: new Date(2024, 6, 14).toISOString(), totalAmount: 39.00, amountPaid: 0, balanceDue: 39.00, orderStatus: 'Pending Payment', paymentType: 'Full Payment' },
-    { id: '3', customerId: '3', customerName: 'Isabella Nguyen', orderDate: new Date(2024, 6, 12).toISOString(), totalAmount: 598.00, amountPaid: 300, balanceDue: 298.00, orderStatus: 'Processing', paymentType: 'Lay-away' },
-    { id: '4', customerId: '4', customerName: 'William Kim', orderDate: new Date(2024, 5, 30).toISOString(), totalAmount: 99.00, amountPaid: 99.00, balanceDue: 0, orderStatus: 'Shipped', paymentType: 'Full Payment' },
-];
+type Customer = {
+  id: string;
+  firstName: string;
+  lastName: string;
+};
+
+type FormattedOrder = Order & {
+    customerName: string;
+    formattedDate: string;
+    formattedTotal: string;
+};
+
 
 const getStatusVariant = (status: Order['orderStatus']) => {
   switch (status) {
@@ -75,36 +83,60 @@ const getStatusVariant = (status: Order['orderStatus']) => {
   }
 }
 
-const statuses: Order['orderStatus'][] = ['Pending Payment', 'Processing', 'Shipped', 'Completed', 'Returned'];
+const statuses: Order['orderStatus'][] = ['Pending Payment', 'Processing', 'Shipped', 'Completed', 'Returned', 'Cancelled'];
 
 export default function OrdersPage() {
   const [logPaymentOrder, setLogPaymentOrder] = useState<Order | null>(null);
   const { toast } = useToast();
+  const firestore = useFirestore();
+  const { user } = useUser();
 
-  const isLoading = false; // Using static data
+  const ordersQuery = useMemoFirebase(
+    () => (firestore && user ? query(collection(firestore, 'orders'), orderBy('orderDate', 'desc')) : null),
+    [firestore, user]
+  );
+  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
 
-  const formattedOrders = useMemo(() => {
-    return staticOrders.map(order => ({
+  const customersQuery = useMemoFirebase(
+    () => (firestore && user ? collection(firestore, 'customers') : null),
+    [firestore, user]
+  );
+  const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
+  
+  const isLoading = isLoadingOrders || isLoadingCustomers;
+
+  const customerMap = useMemo(() => {
+    if (!customers) return new Map<string, string>();
+    return new Map(customers.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
+  }, [customers]);
+
+
+  const formattedOrders: FormattedOrder[] = useMemo(() => {
+    if (!orders) return [];
+    return orders.map(order => ({
       ...order,
+      customerName: customerMap.get(order.customerId) || 'Unknown Customer',
       formattedDate: format(new Date(order.orderDate), 'PPP'),
       formattedTotal: `₱${order.totalAmount.toFixed(2)}`,
     }));
-  }, []);
+  }, [orders, customerMap]);
   
   const processOrderReturn = async (orderId: string) => {
     toast({
         variant: "default",
         title: 'Action Disabled',
-        description: 'Return processing is disabled while using placeholder data.'
+        description: 'Return processing must be implemented.'
     });
   }
 
 
-  const handleStatusChange = (orderId: string, status: Order['orderStatus']) => {
-     toast({
-        variant: "default",
-        title: 'Action Disabled',
-        description: 'Status changes are disabled while using placeholder data.'
+  const handleStatusChange = (orderId: string, newStatus: Order['orderStatus']) => {
+    if (!firestore) return;
+    const orderRef = doc(firestore, 'orders', orderId);
+    updateDocumentNonBlocking(orderRef, { orderStatus: newStatus });
+    toast({
+        title: 'Order Status Updated',
+        description: `Order has been set to "${newStatus}".`,
     });
   };
 
@@ -115,7 +147,7 @@ export default function OrdersPage() {
           <div>
             <CardTitle className="font-headline">Orders</CardTitle>
             <CardDescription>
-              View and manage customer sales orders. (Currently showing static data)
+              View and manage customer sales orders.
             </CardDescription>
           </div>
           <AddOrderDialog />
@@ -145,7 +177,7 @@ export default function OrdersPage() {
                       <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                    </TableRow>
               ))}
-              {formattedOrders.map((order) => (
+              {formattedOrders && formattedOrders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell>
                     <div className="font-medium">{order.customerName}</div>
@@ -219,7 +251,7 @@ export default function OrdersPage() {
               ))}
             </TableBody>
           </Table>
-          {!isLoading && formattedOrders.length === 0 && (
+          {!isLoading && (!formattedOrders || formattedOrders.length === 0) && (
               <div className="flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg p-12 mt-4">
                   <p className="text-lg font-semibold">No orders found</p>
                   <p className="text-muted-foreground mt-2">
@@ -228,7 +260,7 @@ export default function OrdersPage() {
               </div>
           )}
         </CardContent>
-         {formattedOrders.length > 0 && (
+         {formattedOrders && formattedOrders.length > 0 && (
           <CardFooter>
               <div className="text-xs text-muted-foreground">
               Showing <strong>1-{formattedOrders.length}</strong> of <strong>{formattedOrders.length}</strong> orders
