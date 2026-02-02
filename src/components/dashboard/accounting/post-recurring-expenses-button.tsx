@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useFirestore } from '@/firebase';
-import { collection, doc, query, runTransaction, where } from 'firebase/firestore';
+import { collection, doc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { startOfMonth, endOfMonth } from 'date-fns';
@@ -37,58 +37,60 @@ export function PostRecurringExpensesButton() {
             const monthStart = startOfMonth(now);
             const monthEnd = endOfMonth(now);
 
+            // --- READ PHASE ---
+            // 1. Get all recurring expense definitions
             const recurringExpensesRef = collection(firestore, 'recurringExpenses');
+            const recurringSnapshot = await getDocs(recurringExpensesRef);
+            const recurringExpenses = recurringSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as RecurringExpense));
+
+            // 2. Get all expenses already posted this month to avoid duplicates
             const expensesRef = collection(firestore, 'expenses');
+            const monthlyExpensesQuery = query(
+                expensesRef,
+                where('expenseDate', '>=', monthStart.toISOString()),
+                where('expenseDate', '<=', monthEnd.toISOString())
+            );
+            const monthlySnapshot = await getDocs(monthlyExpensesQuery);
+            const postedDescriptions = new Set(monthlySnapshot.docs.map(d => d.data().description));
             
+            // --- WRITE PHASE ---
+            // Use a write batch for all writes for atomicity
+            const batch = writeBatch(firestore);
             let postedCount = 0;
             let skippedCount = 0;
 
-            await runTransaction(firestore, async (transaction) => {
-                // 1. Get all recurring expense definitions transactionally
-                const recurringSnapshot = await transaction.get(recurringExpensesRef);
-                const recurringExpenses = recurringSnapshot.docs.map(d => d.data() as RecurringExpense);
-                
-                // 2. Get all expenses already posted this month
-                const monthlyExpensesQuery = query(
-                    expensesRef,
-                    where('expenseDate', '>=', monthStart.toISOString()),
-                    where('expenseDate', '<=', monthEnd.toISOString())
-                );
-                const monthlySnapshot = await transaction.get(monthlyExpensesQuery);
-
-                // Create a set of descriptions for quick lookup to avoid duplicates
-                const postedDescriptions = new Set(monthlySnapshot.docs.map(d => d.data().description));
-                
-                // 3. Loop and post
-                for (const recurring of recurringExpenses) {
-                    const description = `Recurring: ${recurring.name}`;
-                    if (postedDescriptions.has(description)) {
-                        skippedCount++;
-                        continue;
-                    }
-                    
-                    let dayToUse = recurring.dayOfMonth;
-                    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-                    if (dayToUse > daysInMonth) {
-                        dayToUse = daysInMonth;
-                    }
-                    const expenseDate = new Date(currentYear, currentMonth, dayToUse);
-
-                    const newExpenseRef = doc(expensesRef);
-                    transaction.set(newExpenseRef, {
-                        id: newExpenseRef.id,
-                        expenseDate: expenseDate.toISOString(),
-                        amount: recurring.amount,
-                        category: recurring.category,
-                        description: description,
-                    });
-                    postedCount++;
+            for (const recurring of recurringExpenses) {
+                const description = `Recurring: ${recurring.name}`;
+                if (postedDescriptions.has(description)) {
+                    skippedCount++;
+                    continue;
                 }
-            });
+                
+                let dayToUse = recurring.dayOfMonth;
+                const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                if (dayToUse > daysInMonth) {
+                    dayToUse = daysInMonth; // Clamp to the last day of the month
+                }
+                const expenseDate = new Date(currentYear, currentMonth, dayToUse);
+
+                const newExpenseRef = doc(expensesRef);
+                batch.set(newExpenseRef, {
+                    id: newExpenseRef.id,
+                    expenseDate: expenseDate.toISOString(),
+                    amount: recurring.amount,
+                    category: recurring.category,
+                    description: description,
+                });
+                postedCount++;
+            }
+            
+            if (postedCount > 0) {
+                await batch.commit();
+            }
             
             toast({
                 title: "Processing Complete",
-                description: `${postedCount} expenses posted. ${skippedCount} were already posted for this month and were skipped.`,
+                description: `${postedCount} expenses posted. ${skippedCount} were already posted and skipped.`,
             });
 
         } catch (error: any) {
