@@ -11,6 +11,8 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { format } from 'date-fns';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
 
 type Order = {
     id: string;
@@ -28,45 +30,53 @@ type Customer = {
     lastName: string;
 };
 
-// --- STATIC PLACEHOLDER DATA ---
-const staticCustomers: Customer[] = [
-    { id: 'cust1', firstName: 'John', lastName: 'Doe' },
-    { id: 'cust2', firstName: 'Jane', lastName: 'Smith' },
-];
-
-const staticLayawayOrders: Order[] = [
-    { id: 'ord1', customerId: 'cust1', orderDate: new Date(2024, 6, 1).toISOString(), amountPaid: 100, balanceDue: 400, paymentType: 'Lay-away', orderStatus: 'Processing' },
-    { id: 'ord2', customerId: 'cust2', orderDate: new Date(2024, 6, 15).toISOString(), amountPaid: 50, balanceDue: 50, paymentType: 'Lay-away', orderStatus: 'Pending Payment' },
-];
-// --- END STATIC DATA ---
-
 export function LayawayReport() {
-    const isLoading = false; // Using static data
+    const firestore = useFirestore();
+    const { user } = useUser();
+
+    const layawayOrdersQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(
+            collection(firestore, 'orders'),
+            where('paymentType', '==', 'Lay-away'),
+            where('orderStatus', 'in', ['Pending Payment', 'Processing'])
+        );
+    }, [firestore, user]);
+    const { data: layawayOrders, isLoading: isLoadingOrders } = useCollection<Order>(layawayOrdersQuery);
+
+    const customersQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return collection(firestore, 'customers');
+    }, [firestore, user]);
+    const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
+
+    const isLoading = isLoadingOrders || isLoadingCustomers;
 
     const customerMap = useMemo(() => {
-        return new Map(staticCustomers.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
-    }, []);
+        if (!customers) return new Map();
+        return new Map(customers.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
+    }, [customers]);
 
     const { totalPaid, totalPending, breakdown } = useMemo(() => {
-        if (!staticLayawayOrders) {
+        if (!layawayOrders) {
             return { totalPaid: 0, totalPending: 0, breakdown: [] };
         }
 
-        const paid = staticLayawayOrders.reduce((sum, order) => sum + order.amountPaid, 0);
-        const pending = staticLayawayOrders.reduce((sum, order) => sum + order.balanceDue, 0);
-        const orderBreakdown = staticLayawayOrders.map(order => ({
+        const paid = layawayOrders.reduce((sum, order) => sum + order.amountPaid, 0);
+        const pending = layawayOrders.reduce((sum, order) => sum + order.balanceDue, 0);
+        const orderBreakdown = layawayOrders.map(order => ({
             ...order,
             customerName: customerMap.get(order.customerId) || 'Unknown Customer'
         }));
 
         return { totalPaid: paid, totalPending: pending, breakdown: orderBreakdown };
-    }, [customerMap]);
+    }, [layawayOrders, customerMap]);
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="font-headline">Lay-away (Hulugan) Balances</CardTitle>
-                <CardDescription>Report on active lay-away plans where items have not yet been released. (Currently showing static data)</CardDescription>
+                <CardDescription>Report on active lay-away plans where items have not yet been released.</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 mb-6">
@@ -125,7 +135,7 @@ export function LayawayReport() {
                 <div className="flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg p-12 mt-4">
                     <p className="text-lg font-semibold">No Active Lay-away Plans</p>
                     <p className="text-muted-foreground mt-2">
-                    There are no current orders marked as 'Lay-away'.
+                    There are no current orders marked as 'Lay-away' with a pending balance.
                     </p>
                 </div>
                 )}
