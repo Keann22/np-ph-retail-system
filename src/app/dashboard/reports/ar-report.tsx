@@ -134,7 +134,7 @@ export function AccountsReceivableReport() {
                             <TableCell>
                                 <span className="text-muted-foreground">
                                     {order.paymentType}
-                                    {order.paymentType === 'Installment' && order.installmentMonths ? ` (${order.installmentMonths} mos.)` : ''}
+                                    {order.paymentType === 'Installment' && ` (${order.installmentMonths || 'N/A'} mos.)`}
                                 </span>
                             </TableCell>
                             <TableCell className="text-right">₱{order.totalAmount.toFixed(2)}</TableCell>
