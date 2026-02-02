@@ -22,7 +22,6 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -41,6 +40,7 @@ import { LogPaymentDialog } from '@/components/dashboard/log-payment-dialog';
 import { useCollection, useFirestore, useMemoFirebase, useUser, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Progress } from '@/components/ui/progress';
+import { useRouter } from 'next/navigation';
 
 
 // Matches the Firestore document structure for an order
@@ -48,6 +48,8 @@ export type Order = {
   id: string;
   customerId: string;
   orderDate: string; // ISO string
+  subtotal: number;
+  totalDiscount: number;
   totalAmount: number;
   amountPaid: number;
   balanceDue: number;
@@ -88,6 +90,7 @@ const getStatusVariant = (status: Order['orderStatus']) => {
 const statuses: Order['orderStatus'][] = ['Pending Payment', 'Processing', 'Shipped', 'Completed', 'Returned', 'Cancelled'];
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [logPaymentOrder, setLogPaymentOrder] = useState<Order | null>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -224,7 +227,9 @@ export default function OrdersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem>View Details</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => router.push(`/dashboard/orders/${order.id}`)}>
+                            View Details
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setLogPaymentOrder(order)}>
                             Log Payment
                           </DropdownMenuItem>
