@@ -19,7 +19,7 @@ import { format } from 'date-fns';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Image from 'next/image';
 import { parseReceipt } from '@/ai/flows/parse-receipt-flow';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -93,8 +93,11 @@ function ProductSearch({ rowIndex, form, onAddNewProduct }: { rowIndex: number; 
     }, [search, firestore]);
 
     useEffect(() => {
-        debouncedSearch();
-      }, [search, debouncedSearch]);
+        if (!open) return;
+        const cleanup = debouncedSearch();
+        return cleanup;
+      }, [search, open, debouncedSearch]);
+
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -112,6 +115,7 @@ function ProductSearch({ rowIndex, form, onAddNewProduct }: { rowIndex: number; 
             />
             <CommandList>
                 {isLoadingProducts && <CommandItem disabled>Searching...</CommandItem>}
+                
                 {!isLoadingProducts && productResults.length > 0 && (
                     <CommandGroup>
                     {productResults.map((p) => (
@@ -129,20 +133,28 @@ function ProductSearch({ rowIndex, form, onAddNewProduct }: { rowIndex: number; 
                     ))}
                     </CommandGroup>
                 )}
-                {!isLoadingProducts && productResults.length === 0 && search.length > 1 && (
-                    <CommandItem
-                        onSelect={() => {
-                            onAddNewProduct(search, rowIndex);
-                            setOpen(false);
-                        }}
-                        className="text-primary hover:bg-primary/10"
-                    >
-                        + Add "{search}" as new product
-                    </CommandItem>
+                
+                {!isLoadingProducts && search.length > 1 && (
+                    <>
+                        {productResults.length > 0 && <CommandSeparator />}
+                        <CommandItem
+                            onSelect={() => {
+                                onAddNewProduct(search, rowIndex);
+                                setOpen(false);
+                            }}
+                            className="text-primary cursor-pointer"
+                        >
+                            + Add "{search}" as new product
+                        </CommandItem>
+                    </>
                 )}
-                {!isLoadingProducts && productResults.length === 0 && search.length <= 1 && (
-                    <CommandEmpty>Type to search products.</CommandEmpty>
-                )}
+
+                <CommandEmpty>
+                    {!isLoadingProducts && productResults.length === 0 && search.length < 2 
+                        ? "Type to search products." 
+                        : "No products found."
+                    }
+                </CommandEmpty>
             </CommandList>
           </Command>
         </PopoverContent>
@@ -194,8 +206,8 @@ export default function ScanReceiptPage() {
             if (result.items && result.items.length > 0) {
                 const newItems = result.items.map(item => ({
                     productName: item.productName || '',
-                    quantity: isNaN(item.quantity) ? 1 : item.quantity,
-                    unitCost: isNaN(item.unitCost) ? 0 : item.unitCost,
+                    quantity: isNaN(Number(item.quantity)) || Number(item.quantity) <= 0 ? 1 : Number(item.quantity),
+                    unitCost: isNaN(Number(item.unitCost)) || Number(item.unitCost) < 0 ? 0 : Number(item.unitCost),
                     productId: '',
                 }));
                 replace(newItems);
