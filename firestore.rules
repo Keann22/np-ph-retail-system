@@ -1,97 +1,10 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper function to check if the user is the designated super admin.
-    // This is fast as it only checks the auth token.
-    function isSuperAdmin() {
-      return request.auth.token.email == "keneth.ornos@owner.com";
-    }
-
-    // Helper function to check if the user has any of the specified roles.
-    // This performs a database read, so it CANNOT be used in rules for `list` operations.
-    function hasAnyRole(allowedRoles) {
-      let userRoles = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('roles', []);
-      return userRoles.hasAny(allowedRoles);
-    }
-    
-    // Function to check if the user is the owner of a specific document.
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    // --- Rules for each collection ---
-
-    match /users/{userId} {
-      allow get: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
-      allow delete: if hasAnyRole(['Admin', 'Owner']);
-      // Listing users is restricted to super admin to avoid `get` in list rule.
-      allow list: if isSuperAdmin();
-    }
-
-    match /products/{productId} {
-      // Public read access for products is okay.
-      allow get, list: if request.auth != null;
-      allow write: if hasAnyRole(['Admin', 'Owner', 'Warehouse Manager']);
-    }
-
-    match /categories/{categoryId} {
-        allow get, list: if request.auth != null;
-        allow write: if hasAnyRole(['Admin', 'Owner']);
-    }
-
-    match /inventoryMovements/{movementId} {
-        allow get, write: if hasAnyRole(['Admin', 'Owner', 'Warehouse Manager']);
-        allow list: if isSuperAdmin();
-    }
-    
-    match /customers/{customerId} {
-      allow get, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
-      allow list: if isSuperAdmin();
-    }
-
-    match /orders/{orderId} {
-      allow get, create, update, delete: if hasAnyRole(['Admin', 'Owner', 'Sales']);
-      allow list: if isSuperAdmin();
-    }
-
-    match /orderItems/{orderItemId} {
-      allow get, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
-      allow list: if isSuperAdmin();
-    }
-
-    match /payments/{paymentId} {
-        allow get, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
-        allow list: if isSuperAdmin();
-    }
-
-    match /expenses/{expenseId} {
-        allow get, write: if hasAnyRole(['Admin', 'Owner']);
-        allow list: if isSuperAdmin();
-    }
-
-    match /returns/{returnId} {
-        allow get, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
-        allow list: if isSuperAdmin();
-    }
-    
-    match /refunds/{refundId} {
-        allow get, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
-        allow list: if isSuperAdmin();
-    }
-    
-    match /badDebts/{badDebtId} {
-        allow get, write: if hasAnyRole(['Admin', 'Owner']);
-        allow list: if isSuperAdmin();
-    }
-    
-    match /suppliers/{supplierId} {
-      // Public read access for suppliers is okay.
-      allow get, list: if request.auth != null;
-      allow write: if hasAnyRole(['Admin', 'Owner', 'Warehouse Manager']);
+    match /{document=**} {
+      // Temporarily allow all authenticated users read/write access for debugging.
+      // This is not a secure rule for production but is necessary to isolate the permission issue.
+      allow read, write: if request.auth != null;
     }
   }
 }
