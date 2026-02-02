@@ -22,7 +22,7 @@ type Order = {
     orderDate: string;
     customerId: string;
     paymentType: 'Full Payment' | 'Lay-away' | 'Installment';
-    orderStatus: string;
+    orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled' | 'Returned';
     installmentMonths?: number;
 };
 
@@ -72,7 +72,9 @@ export function AccountsReceivableReport() {
         // Filter for orders that constitute accounts receivable
         const arOrders = allOrders.filter(order => 
             order.balanceDue > 0 && 
-            (order.paymentType === 'Installment' || order.paymentType === 'Lay-away')
+            (order.paymentType === 'Installment' || order.paymentType === 'Lay-away') &&
+            order.orderStatus !== 'Cancelled' &&
+            order.orderStatus !== 'Returned'
         );
 
         const total = arOrders.reduce((sum, order) => sum + order.balanceDue, 0);

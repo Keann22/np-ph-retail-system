@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ReportDateFilter } from './report-date-filter';
 import { Separator } from '@/components/ui/separator';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query } from 'firebase/firestore';
 
 type Order = {
     id: string;
@@ -42,45 +42,64 @@ export function PnlReport() {
     const firestore = useFirestore();
     const { user } = useUser();
 
-    // Queries
-    const ordersQuery = useMemoFirebase(() => {
-        if (!firestore || !user || !date?.from || !date?.to) return null;
-        return query(
-            collection(firestore, 'orders'),
-            where('orderDate', '>=', date.from.toISOString()),
-            where('orderDate', '<=', date.to.toISOString()),
-            where('orderStatus', '!=', 'Cancelled')
-        );
-    }, [firestore, user, date]);
-    const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+    // Queries - Fetch all data and filter on the client
+    const allOrdersQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'orders'));
+    }, [firestore, user]);
+    const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(allOrdersQuery);
 
-    const expensesQuery = useMemoFirebase(() => {
-        if (!firestore || !user || !date?.from || !date?.to) return null;
-        return query(
-            collection(firestore, 'expenses'),
-            where('expenseDate', '>=', date.from.toISOString()),
-            where('expenseDate', '<=', date.to.toISOString())
-        );
-    }, [firestore, user, date]);
-    const { data: expenses, isLoading: isLoadingExpenses } = useCollection<Expense>(expensesQuery);
+    const allExpensesQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'expenses'));
+    }, [firestore, user]);
+    const { data: allExpenses, isLoading: isLoadingExpenses } = useCollection<Expense>(allExpensesQuery);
 
-    const badDebtsQuery = useMemoFirebase(() => {
-        if (!firestore || !user || !date?.from || !date?.to) return null;
-        return query(
-            collection(firestore, 'badDebts'),
-            where('writeOffDate', '>=', date.from.toISOString()),
-            where('writeOffDate', '<=', date.to.toISOString())
-        );
-    }, [firestore, user, date]);
-    const { data: badDebts, isLoading: isLoadingBadDebts } = useCollection<BadDebt>(badDebtsQuery);
+    const allBadDebtsQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'badDebts'));
+    }, [firestore, user]);
+    const { data: allBadDebts, isLoading: isLoadingBadDebts } = useCollection<BadDebt>(allBadDebtsQuery);
 
-    const orderItemsQuery = useMemoFirebase(() => {
+    const allOrderItemsQuery = useMemoFirebase(() => {
         if (!firestore || !user) return null;
         return collection(firestore, 'orderItems');
     }, [firestore, user]);
-    const { data: allOrderItems, isLoading: isLoadingOrderItems } = useCollection<OrderItem>(orderItemsQuery);
+    const { data: allOrderItems, isLoading: isLoadingOrderItems } = useCollection<OrderItem>(allOrderItemsQuery);
 
     const isLoading = isLoadingOrders || isLoadingExpenses || isLoadingBadDebts || isLoadingOrderItems;
+    
+    // Client-side filtering
+    const orders = useMemo(() => {
+        if (!allOrders || !date?.from || !date?.to) return null;
+        const fromTime = date.from.getTime();
+        const toTime = date.to.getTime();
+        return allOrders.filter(order => {
+            const orderTime = new Date(order.orderDate).getTime();
+            return orderTime >= fromTime && orderTime <= toTime && order.orderStatus !== 'Cancelled' && order.orderStatus !== 'Returned';
+        });
+    }, [allOrders, date]);
+
+    const expenses = useMemo(() => {
+        if (!allExpenses || !date?.from || !date?.to) return null;
+        const fromTime = date.from.getTime();
+        const toTime = date.to.getTime();
+        return allExpenses.filter(expense => {
+            const expenseTime = new Date(expense.expenseDate).getTime();
+            return expenseTime >= fromTime && expenseTime <= toTime;
+        });
+    }, [allExpenses, date]);
+    
+    const badDebts = useMemo(() => {
+        if (!allBadDebts || !date?.from || !date?.to) return null;
+        const fromTime = date.from.getTime();
+        const toTime = date.to.getTime();
+        return allBadDebts.filter(debt => {
+            const debtTime = new Date(debt.writeOffDate).getTime();
+            return debtTime >= fromTime && debtTime <= toTime;
+        });
+    }, [allBadDebts, date]);
+
 
     const reportData = useMemo(() => {
         if (!orders || !allOrderItems || !expenses || !badDebts) {
@@ -92,7 +111,7 @@ export function PnlReport() {
         const orderIds = new Set(orders.map(o => o.id));
         const relevantOrderItems = allOrderItems.filter(item => orderIds.has(item.orderId));
         
-        const totalCogs = relevantOrderItems.reduce((sum, item) => sum + (item.costPriceAtSale * item.quantity), 0);
+        const totalCogs = relevantOrderItems.reduce((sum, item) => sum + ((item.costPriceAtSale || 0) * (item.quantity || 0)), 0);
 
         const operatingExpenses = expenses.reduce((sum, expense) => {
             if (expense.category.toLowerCase() !== 'cost of goods sold') {

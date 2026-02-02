@@ -1,11 +1,11 @@
 'use client';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ProcessedOrdersReport } from '@/components/dashboard/processed-orders-report';
-import { SalesReport } from '@/components/dashboard/sales-report';
-import { PnlReport } from '@/components/dashboard/reports/pnl-report';
-import { LayawayReport } from '@/components/dashboard/reports/layaway-report';
-import { CashFlowReport } from '@/components/dashboard/reports/cashflow-report';
+import { ProcessedOrdersReport } from '@/app/dashboard/reports/processed-orders-report';
+import { SalesReport } from '@/app/dashboard/reports/sales-report';
+import { PnlReport } from '@/app/dashboard/reports/pnl-report';
+import { LayawayReport } from '@/app/dashboard/reports/layaway-report';
+import { CashFlowReport } from '@/app/dashboard/reports/cashflow-report';
 import { AccountsReceivableReport } from '@/app/dashboard/reports/ar-report';
 
 export default function ReportsPage() {

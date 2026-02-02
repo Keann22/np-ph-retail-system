@@ -38,7 +38,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query } from 'firebase/firestore';
 
 
 // Matches a subset of the Firestore document structure for an order
@@ -47,7 +47,7 @@ type Order = {
   totalAmount: number;
   orderDate: string; // ISO string
   salesPersonId: string;
-  orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled';
+  orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled' | 'Returned';
 };
 
 // Matches a subset of the Firestore document structure for a user
@@ -73,16 +73,11 @@ export function SalesReport() {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const ordersQuery = useMemoFirebase(() => {
-      if (!firestore || !user || !date?.from || !date.to) return null;
-      return query(
-          collection(firestore, 'orders'),
-          where('orderStatus', '==', 'Completed'),
-          where('orderDate', '>=', date.from.toISOString()),
-          where('orderDate', '<=', date.to.toISOString())
-      );
-  }, [firestore, user, date]);
-  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+  const allOrdersQuery = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return query(collection(firestore, 'orders'));
+  }, [firestore, user]);
+  const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(allOrdersQuery);
 
   const usersQuery = useMemoFirebase(() => {
       if (!firestore || !user) return null;
@@ -91,6 +86,17 @@ export function SalesReport() {
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersQuery);
 
   const isLoading = isLoadingOrders || isLoadingUsers;
+
+  const orders = useMemo(() => {
+    if (!allOrders || !date?.from || !date?.to) return [];
+    const fromTime = date.from.getTime();
+    const toTime = date.to.getTime();
+    return allOrders.filter(order => {
+        const orderTime = new Date(order.orderDate).getTime();
+        return orderTime >= fromTime && orderTime <= toTime && order.orderStatus === 'Completed';
+    });
+  }, [allOrders, date]);
+
 
   const userMap = useMemo(() => {
     if (!users) return new Map();

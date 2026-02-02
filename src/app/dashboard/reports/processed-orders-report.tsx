@@ -36,7 +36,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query } from 'firebase/firestore';
 
 
 // Matches the Firestore document structure for an order
@@ -45,7 +45,7 @@ type Order = {
   customerId: string;
   orderDate: string; // ISO string
   totalAmount: number;
-  orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled';
+  orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled' | 'Returned';
   paymentType: 'Full Payment' | 'Lay-away' | 'Installment';
 };
 
@@ -65,16 +65,11 @@ export function ProcessedOrdersReport() {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const ordersQuery = useMemoFirebase(() => {
-      if (!firestore || !user || !date?.from || !date.to) return null;
-      return query(
-          collection(firestore, 'orders'),
-          where('orderStatus', '==', 'Processing'),
-          where('orderDate', '>=', date.from.toISOString()),
-          where('orderDate', '<=', date.to.toISOString())
-      );
-  }, [firestore, user, date]);
-  const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+  const allOrdersQuery = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return query(collection(firestore, 'orders'));
+  }, [firestore, user]);
+  const { data: allOrders, isLoading: isLoadingOrders } = useCollection<Order>(allOrdersQuery);
 
   const customersQuery = useMemoFirebase(() => {
       if (!firestore || !user) return null;
@@ -83,6 +78,16 @@ export function ProcessedOrdersReport() {
   const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
 
   const isLoading = isLoadingOrders || isLoadingCustomers;
+
+  const orders = useMemo(() => {
+    if (!allOrders || !date?.from || !date?.to) return [];
+    const fromTime = date.from.getTime();
+    const toTime = date.to.getTime();
+    return allOrders.filter(order => {
+        const orderTime = new Date(order.orderDate).getTime();
+        return orderTime >= fromTime && orderTime <= toTime && order.orderStatus === 'Processing';
+    });
+  }, [allOrders, date]);
 
   const customerMap = useMemo(() => {
     if (!customers) return new Map();
@@ -102,9 +107,8 @@ export function ProcessedOrdersReport() {
   }, [orders, customerMap]);
 
   const totalProcessedAmount = useMemo(() => {
-    if (isLoading) return 0;
     return formattedOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-  }, [formattedOrders, isLoading]);
+  }, [formattedOrders]);
   
   const setDatePreset = (preset: 'today' | 'yesterday') => {
     const from = preset === 'today' ? startOfToday() : startOfYesterday();
