@@ -12,13 +12,18 @@ interface FileUploadProps {
   value: File[];
   onChange: (files: File[]) => void;
   className?: string;
+  multiple?: boolean;
 }
 
-export function FileUpload({ value, onChange, className }: FileUploadProps) {
+export function FileUpload({ value, onChange, className, multiple = false }: FileUploadProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
-      onChange([...(value || []), ...newFiles]);
+      if (multiple) {
+        onChange([...(value || []), ...newFiles]);
+      } else {
+        onChange(newFiles.slice(0, 1));
+      }
     }
   };
 
@@ -35,7 +40,7 @@ export function FileUpload({ value, onChange, className }: FileUploadProps) {
                     Click to upload or drag and drop
                 </span>
             </span>
-            <Input id="file-upload" type="file" multiple className="hidden" onChange={handleFileChange} accept="image/*" />
+            <Input id="file-upload" type="file" multiple={multiple} className="hidden" onChange={handleFileChange} accept="image/*" />
         </Label>
         
         {value?.length > 0 && (

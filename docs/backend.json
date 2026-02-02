@@ -401,6 +401,11 @@
             "Bank Transfer",
             "COD Payed"
           ]
+        },
+        "proofOfPaymentUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to the uploaded proof of payment image, required for certain payment methods like GCash."
         }
       },
       "required": [
