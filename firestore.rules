@@ -6,6 +6,12 @@ service cloud.firestore {
     function isSuperAdmin() {
       return request.auth != null && request.auth.token.email == 'keneth.ornos@owner.com';
     }
+    
+    // This wildcard rule is evaluated for every request. If the user is the super admin,
+    // it grants access immediately, and no other rules are checked for that request.
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
 
     function isSignedIn() {
       return request.auth != null;
@@ -17,6 +23,7 @@ service cloud.firestore {
 
     // This function is safe for GET and WRITE but NOT for LIST queries.
     function hasAnyRole(roles) {
+      // Note: This 'get' call means this function cannot be used in a 'list' rule.
       let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
       // Check for document existence and 'roles' field before accessing.
       return isSignedIn() 
@@ -25,80 +32,66 @@ service cloud.firestore {
         && userDoc.data.roles.hasAny(roles);
     }
     
+    // --- Rules for Non-Super-Admins ---
+    // These rules are only evaluated if the isSuperAdmin() check above fails.
+    
     match /users/{userId} {
       // isOwner() is query-safe as it only uses the request context.
-      allow get: if isOwner(userId) || isSuperAdmin();
-      allow list: if isSuperAdmin();
+      allow get: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
+      // LIST for users is restricted to super admin only via the wildcard rule.
       allow create: if isOwner(userId);
       // hasAnyRole is fine here since it's a single-doc write.
       allow update: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
       allow delete: if hasAnyRole(['Admin', 'Owner']);
     }
 
-    // --- Collection Rules ---
-    // The pattern is:
-    // list: only allow for Super Admin (query-safe)
-    // get/write: allow for Super Admin OR other roles (uses hasAnyRole, which is fine for single-doc operations)
-
     match /products/{docId} { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Warehouse Manager', 'Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Sales', 'Warehouse Manager', 'Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
     }
     match /categories/{docId}   { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Admin', 'Owner']); 
     }
     match /inventoryMovements/{docId} { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
     }
     match /customers/{docId}    { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
     }
     match /orders/{docId}       { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
     }
     match /orderItems/{docId}   { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
     }
     match /payments/{docId}     { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
     }
     match /expenses/{docId}     { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Admin', 'Owner']); 
     }
     match /returns/{docId}      { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
     }
     match /refunds/{docId}      { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Admin', 'Owner']); 
     }
     match /badDebts/{docId}     { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Admin', 'Owner']); 
     }
     match /suppliers/{docId}    { 
-      allow list: if isSuperAdmin();
-      allow get: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
-      allow write: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
+      allow get: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
+      allow write: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
     }
   }
 }
