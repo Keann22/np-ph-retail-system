@@ -25,7 +25,7 @@ const productSchema = z.object({
   description: z.string().optional(),
   categoryId: z.string().optional(),
   supplierId: z.string().optional(),
-  images: z.custom<File[]>().refine((files) => files?.length > 0, "At least one image is required."),
+  images: z.custom<File[]>().optional(),
   initialUnitCost: z.coerce.number().min(0, "Cost must be positive"),
   sellingPrice: z.coerce.number().min(0, "Selling price must be positive"),
   quantityOnHand: z.coerce.number().int().min(0, "Stock must be a non-negative integer"),
@@ -164,15 +164,17 @@ export function AddProductDialog(props: AddProductDialogProps) {
       props.onProductAdded?.({ id: newProductRef.id, name: values.name });
 
       try {
-        const imageUrls = await Promise.all(
-          imageFiles.map(async (file) => {
-            const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
-            await uploadBytes(storageRef, file);
-            return getDownloadURL(storageRef);
-          })
-        );
+        if (imageFiles && imageFiles.length > 0) {
+            const imageUrls = await Promise.all(
+            imageFiles.map(async (file) => {
+                const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
+                await uploadBytes(storageRef, file);
+                return getDownloadURL(storageRef);
+            })
+            );
+            updateDocumentNonBlocking(newProductRef, { images: imageUrls });
+        }
 
-        updateDocumentNonBlocking(newProductRef, { images: imageUrls });
 
         if (quantityOnHand > 0) {
             const inventoryMovementsCollection = collection(firestore, 'inventoryMovements');
@@ -228,7 +230,7 @@ export function AddProductDialog(props: AddProductDialogProps) {
                     name="images"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Product Images</FormLabel>
+                        <FormLabel>Product Images (Optional)</FormLabel>
                         <FormControl>
                             <FileUpload 
                                 value={field.value} 
