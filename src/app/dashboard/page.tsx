@@ -1,4 +1,9 @@
+'use client';
+
 import { Activity, CreditCard, DollarSign, TrendingUp } from 'lucide-react';
+import { useMemo } from 'react';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 import {
   Card,
@@ -9,8 +14,103 @@ import {
 import { Overview } from '@/components/dashboard/overview';
 import { RecentSales } from '@/components/dashboard/recent-sales';
 import { AiRecommendations } from '@/components/dashboard/ai-recommendations';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Types based on backend.json
+type Order = {
+  id: string;
+  totalAmount: number;
+  balanceDue: number;
+  orderStatus: 'Pending Payment' | 'Processing' | 'Shipped' | 'Completed' | 'Cancelled' | 'Returned';
+};
+
+type OrderItem = {
+  orderId: string;
+  quantity: number;
+  costPriceAtSale: number;
+};
+
+type Expense = {
+  amount: number;
+  category: string;
+};
+
 
 export default function DashboardPage() {
+    const firestore = useFirestore();
+    const { user } = useUser();
+
+    // Queries
+    const ordersQuery = useMemoFirebase(
+        () => (firestore && user ? collection(firestore, 'orders') : null),
+        [firestore, user]
+    );
+
+    const orderItemsQuery = useMemoFirebase(
+        () => (firestore && user ? collection(firestore, 'orderItems') : null),
+        [firestore, user]
+    );
+
+    const expensesQuery = useMemoFirebase(
+        () => (firestore && user ? collection(firestore, 'expenses') : null),
+        [firestore, user]
+    );
+    
+    // Data fetching
+    const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(ordersQuery);
+    const { data: orderItems, isLoading: isLoadingOrderItems } = useCollection<OrderItem>(orderItemsQuery);
+    const { data: expenses, isLoading: isLoadingExpenses } = useCollection<Expense>(expensesQuery);
+
+    const isLoading = isLoadingOrders || isLoadingOrderItems || isLoadingExpenses;
+
+    const dashboardMetrics = useMemo(() => {
+        if (!orders || !orderItems || !expenses) {
+            return {
+                totalRevenue: 0,
+                netProfit: 0,
+                salesCount: 0,
+                accountsReceivable: 0,
+                arCount: 0,
+            };
+        }
+
+        const validOrders = orders.filter(o => o.orderStatus !== 'Cancelled' && o.orderStatus !== 'Returned');
+
+        const totalRevenue = validOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+        const salesCount = validOrders.length;
+        
+        const accountsReceivableData = orders.filter(o => o.balanceDue > 0);
+        const accountsReceivable = accountsReceivableData.reduce((sum, order) => sum + order.balanceDue, 0);
+        const arCount = accountsReceivableData.length;
+
+        // Net Profit Calculation
+        const validOrderIds = new Set(validOrders.map(o => o.id));
+        const relevantOrderItems = orderItems.filter(item => validOrderIds.has(item.orderId));
+        
+        const totalCogs = relevantOrderItems.reduce((sum, item) => sum + ((item.costPriceAtSale || 0) * (item.quantity || 0)), 0);
+        
+        const operatingExpenses = expenses.reduce((sum, expense) => {
+            if (expense.category.toLowerCase() !== 'cost of goods sold') {
+                return sum + expense.amount;
+            }
+            return sum;
+        }, 0);
+        
+        // Note: Bad Debts are not included here for simplicity, but could be added.
+        const grossProfit = totalRevenue - totalCogs;
+        const netProfit = grossProfit - operatingExpenses;
+
+        return {
+            totalRevenue,
+            netProfit,
+            salesCount,
+            accountsReceivable,
+            arCount,
+        }
+
+    }, [orders, orderItems, expenses]);
+
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
@@ -22,9 +122,11 @@ export default function DashboardPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₱45,231.89</div>
+            {isLoading ? <Skeleton className="h-8 w-3/4 mt-1" /> : (
+                <div className="text-2xl font-bold">₱{dashboardMetrics.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            )}
             <p className="text-xs text-muted-foreground">
-              +20.1% from last month
+              Total revenue from all non-cancelled orders.
             </p>
           </CardContent>
         </Card>
@@ -36,9 +138,11 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₱12,874.45</div>
+             {isLoading ? <Skeleton className="h-8 w-3/4 mt-1" /> : (
+                <div className="text-2xl font-bold">₱{dashboardMetrics.netProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            )}
             <p className="text-xs text-muted-foreground">
-              +18.3% from last month
+              Revenue minus COGS and operating expenses.
             </p>
           </CardContent>
         </Card>
@@ -48,9 +152,11 @@ export default function DashboardPage() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+1,234</div>
+             {isLoading ? <Skeleton className="h-8 w-1/2 mt-1" /> : (
+                <div className="text-2xl font-bold">+{dashboardMetrics.salesCount.toLocaleString()}</div>
+            )}
             <p className="text-xs text-muted-foreground">
-              +19% from last month
+              Total number of non-cancelled orders.
             </p>
           </CardContent>
         </Card>
@@ -62,9 +168,11 @@ export default function DashboardPage() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₱5,730.00</div>
+            {isLoading ? <Skeleton className="h-8 w-3/4 mt-1" /> : (
+                <div className="text-2xl font-bold">₱{dashboardMetrics.accountsReceivable.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            )}
             <p className="text-xs text-muted-foreground">
-              21 active installments
+              {dashboardMetrics.arCount} active installments
             </p>
           </CardContent>
         </Card>
