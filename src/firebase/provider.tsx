@@ -83,37 +83,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      async (firebaseUser) => { // Auth state determined
-        if (firebaseUser) {
-            // When a user signs in, check if they have a user profile document.
-            // If not, create one. This handles new sign-ups.
-            const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-            if (!userDocSnap.exists()) {
-                try {
-                    // Check if this is the first user.
-                    const usersCollectionRef = collection(firestore, 'users');
-                    const q = query(usersCollectionRef, limit(1));
-                    const querySnapshot = await getDocs(q);
-                    const isFirstUser = querySnapshot.empty;
-                    
-                    const roles = isFirstUser ? ['Owner'] : ['Sales'];
-
-                    const nameParts = firebaseUser.displayName?.split(' ') || (firebaseUser.email?.split('@')[0] || '').split('.');
-                    const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : 'New';
-                    const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : 'User';
-
-                    await setDoc(userDocRef, {
-                        firstName,
-                        lastName,
-                        email: firebaseUser.email,
-                        roles,
-                    });
-                } catch (e) {
-                    console.error("Error creating user document:", e);
-                }
-            }
-        }
+      (firebaseUser) => { // Auth state determined
+        // The user profile creation logic that was here has been removed to simplify the auth flow
+        // and eliminate potential race conditions. This can be re-introduced later using a more robust method like a Cloud Function.
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
