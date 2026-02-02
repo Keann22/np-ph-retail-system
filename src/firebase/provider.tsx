@@ -83,9 +83,43 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      (firebaseUser) => { // Auth state determined
-        // The user profile creation logic that was here has been removed to simplify the auth flow
-        // and eliminate potential race conditions. This can be re-introduced later using a more robust method like a Cloud Function.
+      async (firebaseUser) => {
+        if (firebaseUser) {
+          // When user signs in, ensure their profile document exists in Firestore
+          const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (!userDoc.exists()) {
+            // Document doesn't exist, so this is a first-time sign-in for this user in this app
+            const usersCollectionRef = collection(firestore, 'users');
+            const firstUserQuery = query(usersCollectionRef, limit(1));
+            const firstUserSnapshot = await getDocs(firstUserQuery);
+            
+            let roles = ['Sales']; // Default role for new users
+            if (firstUserSnapshot.empty) {
+              // This is the very first user in the system
+              roles = ['Owner', 'Admin', 'Sales'];
+            }
+
+            const [firstName, ...lastNameParts] = firebaseUser.displayName?.split(' ') || ['New', 'User'];
+            const lastName = lastNameParts.join(' ');
+
+            try {
+              await setDoc(userDocRef, {
+                id: firebaseUser.uid,
+                firstName,
+                lastName,
+                email: firebaseUser.email,
+                roles: roles,
+              });
+            } catch (e) {
+                // This might fail due to security rules if the user is not allowed to create their own profile.
+                // Log it, but don't block the auth state update.
+                console.error("Failed to create user profile document:", e);
+            }
+          }
+        }
+        // Whether profile creation succeeded or not, update the auth state so the app can proceed.
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error

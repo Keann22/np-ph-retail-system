@@ -1,10 +1,69 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // Temporarily allow all authenticated users read/write access for debugging.
-      // This is not a secure rule for production but is necessary to isolate the permission issue.
-      allow read, write: if request.auth != null;
+
+    function isSuperAdmin() {
+      return request.auth != null && request.auth.token.email == 'keneth.ornos@owner.com';
     }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // DANGEROUS FOR LIST QUERIES. ONLY USE WITH `allow get` or `allow write`.
+    function hasAnyRole(roles) {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(roles);
+    }
+    
+    match /users/{userId} {
+      // A user can create their own document on signup.
+      allow create: if isOwner(userId);
+      // You can get your own profile, or if you're an admin.
+      allow get: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
+      // Admins can list all users. LIST operations cannot use functions with get()
+      allow list: if isSuperAdmin();
+      // You can only update your own profile. Admins can update roles.
+      allow update: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
+      // Admins can delete users.
+      allow delete: if hasAnyRole(['Admin', 'Owner']);
+    }
+
+    // For all other collections, we will use a simple model:
+    // SuperAdmin can do anything.
+    // Other roles can perform single-document reads (get) based on their role.
+    // LISTING is only permitted for the SuperAdmin to avoid complex query constraints.
+    
+    function allowGetByRole(roles) {
+       return isSuperAdmin() || hasAnyRole(roles);
+    }
+
+    function allowListByRole() {
+        // This is the key: LIST operations for non-super-admins would require
+        // complex rules with query constraints. By only allowing the SuperAdmin to list,
+        // we avoid all "insufficient permissions" errors on queries.
+        return isSuperAdmin();
+    }
+    
+    function allowWriteByRole(roles) {
+        return isSuperAdmin() || hasAnyRole(roles);
+    }
+
+    match /products/{docId}      { allow get: if allowGetByRole(['Sales', 'Warehouse Manager', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Warehouse Manager', 'Admin', 'Owner']); }
+    match /categories/{docId}   { allow get: if allowGetByRole(['Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Admin', 'Owner']); }
+    match /inventoryMovements/{docId} { allow get: if allowGetByRole(['Warehouse Manager', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Warehouse Manager', 'Admin', 'Owner']); }
+    match /customers/{docId}    { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
+    match /orders/{docId}       { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
+    match /orderItems/{docId}   { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
+    match /payments/{docId}     { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
+    match /expenses/{docId}     { allow get: if allowGetByRole(['Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Admin', 'Owner']); }
+    match /returns/{docId}      { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
+    match /refunds/{docId}      { allow get: if allowGetByRole(['Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Admin', 'Owner']); }
+    match /badDebts/{docId}     { allow get: if allowGetByRole(['Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Admin', 'Owner']); }
+    match /suppliers/{docId}    { allow get: if allowGetByRole(['Warehouse Manager', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Warehouse Manager', 'Admin', 'Owner']); }
   }
 }
