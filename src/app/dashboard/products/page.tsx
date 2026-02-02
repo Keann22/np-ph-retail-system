@@ -48,9 +48,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { EditProductDialog } from '@/components/dashboard/edit-product-dialog';
 
 // Matches the Firestore document structure for a product
-type Product = {
+export type Product = {
   id: string;
   name: string;
   sku: string;
@@ -67,7 +68,7 @@ type Supplier = {
     name: string;
 }
 
-type FormattedProduct = Product & {
+export type FormattedProduct = Product & {
     status: { text: 'In Stock' | 'Low Stock' | 'Out of Stock'; variant: 'outline' | 'default' | 'destructive'; };
     price: string;
     image: string;
@@ -90,6 +91,7 @@ export default function ProductsPage() {
   const storage = useStorage();
   const { user } = useUser();
   const [deletingProduct, setDeletingProduct] = useState<FormattedProduct | null>(null);
+  const [editingProduct, setEditingProduct] = useState<FormattedProduct | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -405,7 +407,7 @@ export default function ProductsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setEditingProduct(product)}>Edit</DropdownMenuItem>
                         <DropdownMenuItem>Duplicate</DropdownMenuItem>
                         <DropdownMenuItem>View History</DropdownMenuItem>
                         <DropdownMenuItem
@@ -459,6 +461,12 @@ export default function ProductsPage() {
           </CardFooter>
         )}
       </Card>
+
+      <EditProductDialog 
+        product={editingProduct}
+        open={!!editingProduct}
+        onOpenChange={(isOpen) => !isOpen && setEditingProduct(null)}
+      />
 
       <AlertDialog open={!!deletingProduct} onOpenChange={(isOpen) => !isOpen && setDeletingProduct(null)}>
         <AlertDialogContent>
