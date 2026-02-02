@@ -47,6 +47,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Matches the Firestore document structure for a product
 type Product = {
@@ -75,7 +76,7 @@ type FormattedProduct = Product & {
 
 const getStatus = (stock: number | undefined | null): { text: 'In Stock' | 'Low Stock' | 'Out of Stock'; variant: 'outline' | 'default' | 'destructive' } => {
   const currentStock = stock ?? 0;
-  if (currentStock === 0) {
+  if (currentStock <= 0) {
     return { text: 'Out of Stock', variant: 'destructive' };
   }
   if (currentStock <= 10) {
@@ -95,6 +96,7 @@ export default function ProductsPage() {
   const itemsPerPage = 50;
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [stockFilter, setStockFilter] = useState('all');
 
   const productsQuery = useMemoFirebase(
     () => (firestore && user ? collection(firestore, 'products') : null),
@@ -119,6 +121,7 @@ export default function ProductsPage() {
     if (!products) return [];
     return products.map(p => ({
       ...p,
+      quantityOnHand: p.quantityOnHand ?? 0,
       status: getStatus(p.quantityOnHand),
       price: `₱${p.sellingPrice.toFixed(2)}`,
       image: p.images?.[0] || 'https://placehold.co/64x64',
@@ -127,11 +130,26 @@ export default function ProductsPage() {
   }, [products, supplierMap]);
 
   const filteredProducts = useMemo(() => {
-    if (!searchTerm) return formattedProducts;
-    return formattedProducts.filter(product =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [formattedProducts, searchTerm]);
+    let results = formattedProducts;
+
+    // Filter by stock status
+    if (stockFilter === 'in-stock') {
+      results = results.filter(product => (product.quantityOnHand ?? 0) > 0);
+    } else if (stockFilter === 'no-stock') {
+      results = results.filter(product => (product.quantityOnHand ?? 0) === 0);
+    } else if (stockFilter === 'negative-stock') {
+        results = results.filter(product => (product.quantityOnHand ?? 0) < 0);
+    }
+
+    // Filter by search term
+    if (searchTerm) {
+      results = results.filter(product =>
+        product.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return results;
+  }, [formattedProducts, searchTerm, stockFilter]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const paginatedProducts = filteredProducts.slice(
@@ -256,15 +274,31 @@ export default function ProductsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between mb-4">
-            <Input
-              placeholder="Search products by name..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="max-w-sm"
-            />
+            <div className="flex items-center gap-2">
+                <Input
+                placeholder="Search products by name..."
+                value={searchTerm}
+                onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                }}
+                className="max-w-sm"
+                />
+                <Select value={stockFilter} onValueChange={(value) => {
+                    setStockFilter(value);
+                    setCurrentPage(1);
+                }}>
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Filter by stock" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Products</SelectItem>
+                        <SelectItem value="in-stock">In Stock</SelectItem>
+                        <SelectItem value="no-stock">No Stock</SelectItem>
+                        <SelectItem value="negative-stock">Negative Stock</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
             {selectedProductIds.length > 0 && (
                 <Button
                     variant="destructive"
