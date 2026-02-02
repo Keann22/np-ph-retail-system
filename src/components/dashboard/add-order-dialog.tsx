@@ -218,10 +218,6 @@ export function AddOrderDialog() {
 
           const productData = productDoc.data() as Product;
 
-          if (productData.quantityOnHand < item.quantity) {
-            throw new Error(`Not enough stock for "${item.productName}". Only ${productData.quantityOnHand} available.`);
-          }
-
           let quantityToDeduct = item.quantity;
           let totalCostOfGoods = 0;
           
@@ -248,12 +244,10 @@ export function AddOrderDialog() {
             }
           }
           
-          if (quantityToDeduct > 0) {
-            throw new Error(`Stock calculation error for "${item.productName}". Not enough batch quantity available.`);
-          }
-
           const newQuantityOnHand = productData.quantityOnHand - item.quantity;
-          const costPriceAtSale = totalCostOfGoods / item.quantity;
+          // This calculation correctly handles cases with partial or no stock.
+          // If no stock is available, costPriceAtSale will be 0.
+          const costPriceAtSale = item.quantity > 0 ? totalCostOfGoods / item.quantity : 0;
 
           transaction.update(productRef, {
             quantityOnHand: newQuantityOnHand,
