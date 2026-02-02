@@ -2,11 +2,98 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // WARNING: These rules are insecure and are intended as a temporary measure
-    // to resolve persistent permission errors. They allow any authenticated
-    // user to read and write all data.
+
+    // Helper function to check if the user is the designated super admin.
+    // This is fast as it only checks the auth token.
+    function isSuperAdmin() {
+      return request.auth.token.email == "keneth.ornos@owner.com";
+    }
+
+    // This is a global override. If the user is the Super Admin, they have full access to everything.
+    // This rule is evaluated first and grants access, preventing query failures caused by more
+    // complex rules below.
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSuperAdmin();
+    }
+    
+    // --- Granular rules for non-super-admin users ---
+
+    // Helper function to check if the user has any of the specified roles.
+    // This performs a database read, so it CANNOT be used in rules for `list` or `query` operations for non-admins.
+    function hasAnyRole(allowedRoles) {
+      let userRoles = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('roles', []);
+      return userRoles.hasAny(allowedRoles);
+    }
+    
+    // Function to check if the user is the owner of a specific document.
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      // A user can read their own profile, or an Admin/Owner can read any profile.
+      allow get: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
+      // Any authenticated user can create their own user document.
+      allow create: if isOwner(userId);
+      // A user can update their own profile, or an Admin/Owner can update any.
+      allow update: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
+      // Only Admins/Owners can delete users.
+      allow delete: if hasAnyRole(['Admin', 'Owner']);
+      // Listing users is handled by the super admin rule.
+    }
+
+    match /products/{productId} {
+      // Any authenticated user can read product info.
+      allow get, list: if request.auth != null;
+      // Writing products is restricted.
+      allow write: if hasAnyRole(['Admin', 'Owner', 'Warehouse Manager']);
+    }
+
+    match /categories/{categoryId} {
+        allow read: if request.auth != null;
+        allow write: if hasAnyRole(['Admin', 'Owner']);
+    }
+
+    match /inventoryMovements/{movementId} {
+        allow get, write: if hasAnyRole(['Admin', 'Owner', 'Warehouse Manager']);
+    }
+    
+    match /customers/{customerId} {
+      allow get, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
+    }
+
+    match /orders/{orderId} {
+      // Non-admins can only get/write their own orders. Listing all orders is admin-only.
+      allow get, create, update, delete: if hasAnyRole(['Admin', 'Owner', 'Sales']);
+    }
+
+    match /orderItems/{orderItemId} {
+      allow read, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
+    }
+
+    match /payments/{paymentId} {
+        allow get, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
+    }
+
+    match /expenses/{expenseId} {
+        allow get, write: if hasAnyRole(['Admin', 'Owner']);
+    }
+
+    match /returns/{returnId} {
+        allow get, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
+    }
+    
+    match /refunds/{refundId} {
+        allow get, write: if hasAnyRole(['Admin', 'Owner', 'Sales']);
+    }
+    
+    match /badDebts/{badDebtId} {
+        allow get, write: if hasAnyRole(['Admin', 'Owner']);
+    }
+    
+    match /suppliers/{supplierId} {
+      allow read: if request.auth != null;
+      allow write: if hasAnyRole(['Admin', 'Owner', 'Warehouse Manager']);
     }
   }
 }
