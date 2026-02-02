@@ -57,6 +57,46 @@ export interface UserHookResult { // Renamed from UserAuthHookResult for consist
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
 /**
+ * Ensures a user profile document exists in Firestore.
+ * If it doesn't, it creates one, assigning the 'Owner' role if they are the first user.
+ * This function is designed to be called in the background without blocking UI updates.
+ * @param firestore - The Firestore instance.
+ * @param firebaseUser - The authenticated Firebase user.
+ */
+async function ensureUserProfileExists(firestore: Firestore, firebaseUser: User) {
+    const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+    try {
+        const userDoc = await getDoc(userDocRef);
+        if (!userDoc.exists()) {
+            const usersCollectionRef = collection(firestore, 'users');
+            const firstUserQuery = query(usersCollectionRef, limit(1));
+            const firstUserSnapshot = await getDocs(firstUserQuery);
+
+            let roles = ['Sales']; // Default role
+            if (firstUserSnapshot.empty) {
+                // This is the very first user in the system.
+                roles = ['Owner', 'Admin', 'Warehouse Manager', 'Sales'];
+            }
+
+            const [firstName, ...lastNameParts] = firebaseUser.displayName?.split(' ') || ['New', 'User'];
+            const lastName = lastNameParts.join(' ');
+
+            await setDoc(userDocRef, {
+                id: firebaseUser.uid,
+                firstName,
+                lastName,
+                email: firebaseUser.email,
+                roles: roles,
+            });
+        }
+    } catch (dbError) {
+        // Log the error but don't throw, as this is a background process.
+        console.error("Error during background user profile check/creation:", dbError);
+    }
+}
+
+
+/**
  * FirebaseProvider manages and provides Firebase services and user authentication state.
  */
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
@@ -74,61 +114,31 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
   // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
-    if (!auth || !firestore) { // If no Auth service instance, cannot determine user state
+    if (!auth || !firestore) {
       setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth and Firestore services must be provided.") });
       return;
     }
 
-    setUserAuthState({ user: null, isUserLoading: true, userError: null }); // Reset on auth instance change
+    setUserAuthState({ user: null, isUserLoading: true, userError: null });
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      async (firebaseUser) => {
-        if (firebaseUser) {
-          // When user signs in, ensure their profile document exists in Firestore
-          const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
-
-          if (!userDoc.exists()) {
-            // Document doesn't exist, so this is a first-time sign-in for this user in this app
-            const usersCollectionRef = collection(firestore, 'users');
-            const firstUserQuery = query(usersCollectionRef, limit(1));
-            const firstUserSnapshot = await getDocs(firstUserQuery);
-            
-            let roles = ['Sales']; // Default role for new users
-            if (firstUserSnapshot.empty) {
-              // This is the very first user in the system
-              roles = ['Owner', 'Admin', 'Sales'];
-            }
-
-            const [firstName, ...lastNameParts] = firebaseUser.displayName?.split(' ') || ['New', 'User'];
-            const lastName = lastNameParts.join(' ');
-
-            try {
-              await setDoc(userDocRef, {
-                id: firebaseUser.uid,
-                firstName,
-                lastName,
-                email: firebaseUser.email,
-                roles: roles,
-              });
-            } catch (e) {
-                // This might fail due to security rules if the user is not allowed to create their own profile.
-                // Log it, but don't block the auth state update.
-                console.error("Failed to create user profile document:", e);
-            }
-          }
-        }
-        // Whether profile creation succeeded or not, update the auth state so the app can proceed.
+      (firebaseUser) => {
+        // Immediately update the auth state to unblock the application.
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
+
+        // After updating state, perform the non-blocking database operation in the background.
+        if (firebaseUser) {
+            ensureUserProfileExists(firestore, firebaseUser);
+        }
       },
       (error) => { // Auth listener error
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
         setUserAuthState({ user: null, isUserLoading: false, userError: error });
       }
     );
-    return () => unsubscribe(); // Cleanup
-  }, [auth, firestore]); // Depends on the auth instance
+    return () => unsubscribe();
+  }, [auth, firestore]);
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {

@@ -15,7 +15,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // DANGEROUS FOR LIST QUERIES. ONLY USE WITH `allow get` or `allow write`.
+    // This function is safe for GET and WRITE but NOT for LIST queries.
     function hasAnyRole(roles) {
       return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(roles);
     }
@@ -25,7 +25,7 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       // You can get your own profile, or if you're an admin.
       allow get: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
-      // Admins can list all users. LIST operations cannot use functions with get()
+      // Only SuperAdmin can list all users to prevent expensive reads.
       allow list: if isSuperAdmin();
       // You can only update your own profile. Admins can update roles.
       allow update: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
@@ -33,19 +33,13 @@ service cloud.firestore {
       allow delete: if hasAnyRole(['Admin', 'Owner']);
     }
 
-    // For all other collections, we will use a simple model:
-    // SuperAdmin can do anything.
-    // Other roles can perform single-document reads (get) based on their role.
-    // LISTING is only permitted for the SuperAdmin to avoid complex query constraints.
-    
+    // Helper functions for secure and efficient rule definitions
     function allowGetByRole(roles) {
        return isSuperAdmin() || hasAnyRole(roles);
     }
 
+    // LIST operations must be cheap. Only allow for SuperAdmin.
     function allowListByRole() {
-        // This is the key: LIST operations for non-super-admins would require
-        // complex rules with query constraints. By only allowing the SuperAdmin to list,
-        // we avoid all "insufficient permissions" errors on queries.
         return isSuperAdmin();
     }
     
@@ -53,6 +47,7 @@ service cloud.firestore {
         return isSuperAdmin() || hasAnyRole(roles);
     }
 
+    // Apply rules to all collections using the helper functions
     match /products/{docId}      { allow get: if allowGetByRole(['Sales', 'Warehouse Manager', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Warehouse Manager', 'Admin', 'Owner']); }
     match /categories/{docId}   { allow get: if allowGetByRole(['Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Admin', 'Owner']); }
     match /inventoryMovements/{docId} { allow get: if allowGetByRole(['Warehouse Manager', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Warehouse Manager', 'Admin', 'Owner']); }
