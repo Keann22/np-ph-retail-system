@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useFirestore } from '@/firebase';
-import { collection, doc, getDocs, query, runTransaction, where } from 'firebase/firestore';
+import { collection, doc, query, runTransaction, where } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { startOfMonth, endOfMonth } from 'date-fns';
@@ -44,8 +44,8 @@ export function PostRecurringExpensesButton() {
             let skippedCount = 0;
 
             await runTransaction(firestore, async (transaction) => {
-                // 1. Get all recurring expense definitions
-                const recurringSnapshot = await getDocs(recurringExpensesRef);
+                // 1. Get all recurring expense definitions transactionally
+                const recurringSnapshot = await transaction.get(recurringExpensesRef);
                 const recurringExpenses = recurringSnapshot.docs.map(d => d.data() as RecurringExpense);
                 
                 // 2. Get all expenses already posted this month
@@ -67,7 +67,12 @@ export function PostRecurringExpensesButton() {
                         continue;
                     }
                     
-                    const expenseDate = new Date(currentYear, currentMonth, recurring.dayOfMonth);
+                    let dayToUse = recurring.dayOfMonth;
+                    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                    if (dayToUse > daysInMonth) {
+                        dayToUse = daysInMonth;
+                    }
+                    const expenseDate = new Date(currentYear, currentMonth, dayToUse);
 
                     const newExpenseRef = doc(expensesRef);
                     transaction.set(newExpenseRef, {
