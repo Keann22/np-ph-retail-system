@@ -54,73 +54,73 @@ service cloud.firestore {
     }
     
     match /categories/{categoryId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /inventoryMovements/{inventoryMovementId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
     }
 
     match /customers/{customerId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /orders/{orderId} {
-      allow list: if isSuperAdmin(); // SAFE for list
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /orderItems/{orderItemId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /payments/{paymentId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /expenses/{expenseId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /recurringExpenses/{recurringExpenseId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /returns/{returnId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /refunds/{refundId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /badDebts/{badDebtId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /suppliers/{supplierId} {
-      allow list: if isSuperAdmin();
+      allow list: if isSignedIn();
       allow get: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
     }
