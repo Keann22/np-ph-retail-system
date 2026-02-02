@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   Package,
+  Repeat,
   Upload,
   ShoppingCart,
   Truck,
@@ -82,7 +83,8 @@ export default function DashboardLayout({
       isOpen: openAccounting,
       setIsOpen: setOpenAccounting,
       subItems: [
-          { href: '/dashboard/accounting/expenses', label: 'Expenses', icon: Wallet }
+          { href: '/dashboard/accounting/expenses', label: 'Expenses', icon: Wallet },
+          { href: '/dashboard/accounting/recurring', label: 'Recurring', icon: Repeat },
       ]
     },
     { href: '/dashboard/customers', label: 'Customers', icon: Users },

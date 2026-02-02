@@ -434,6 +434,41 @@
         "category"
       ]
     },
+    "RecurringExpense": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "RecurringExpense",
+      "type": "object",
+      "description": "Represents a definition for a business expense that occurs monthly.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the recurring expense entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the recurring expense (e.g., Office Rent)."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of the expense."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the expense (e.g., rent, utilities, salaries, marketing)."
+        },
+        "dayOfMonth": {
+          "type": "number",
+          "description": "The day of the month this expense typically occurs (1-31)."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "amount",
+        "category",
+        "dayOfMonth"
+      ]
+    },
     "Return": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Return",
@@ -732,6 +767,22 @@
             {
               "name": "expenseId",
               "description": "The unique identifier of the expense."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/recurringExpenses/{recurringExpenseId}",
+        "definition": {
+          "entityName": "RecurringExpense",
+          "schema": {
+            "$ref": "#/backend/entities/RecurringExpense"
+          },
+          "description": "Stores definitions for recurring monthly expenses. Accessible to owner and admin roles.",
+          "params": [
+            {
+              "name": "recurringExpenseId",
+              "description": "The unique identifier of the recurring expense definition."
             }
           ]
         }

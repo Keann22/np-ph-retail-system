@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { AddExpenseDialog } from '@/components/dashboard/accounting/add-expense-dialog';
 import { useMemo } from 'react';
+import { PostRecurringExpensesButton } from '@/components/dashboard/accounting/post-recurring-expenses-button';
 
 
 // Matches the Firestore document structure for an expense
@@ -59,7 +60,10 @@ export default function ExpensesPage() {
             View and record your business's operational costs.
           </CardDescription>
         </div>
-        <AddExpenseDialog />
+        <div className='flex gap-2'>
+          <PostRecurringExpensesButton />
+          <AddExpenseDialog />
+        </div>
       </CardHeader>
       <CardContent>
         <Table>

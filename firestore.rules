@@ -95,6 +95,12 @@ service cloud.firestore {
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
+    match /recurringExpenses/{recurringExpenseId} {
+      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+    }
+
     match /returns/{returnId} {
       allow list: if isSuperAdmin();
       allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
