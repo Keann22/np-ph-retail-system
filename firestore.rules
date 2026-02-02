@@ -21,44 +21,85 @@ service cloud.firestore {
     }
     
     match /users/{userId} {
-      // A user can create their own document on signup.
-      allow create: if isOwner(userId);
-      // You can get your own profile, or if you're an admin.
-      allow get: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
-      // Only SuperAdmin can list all users to prevent expensive reads.
+      // A user can read their own profile, or a super admin can read any profile.
+      // This rule is query-safe and avoids circular dependencies.
+      allow get: if isOwner(userId) || isSuperAdmin();
+      // Only a super admin can list all users to prevent expensive reads and data leakage.
       allow list: if isSuperAdmin();
-      // You can only update your own profile. Admins can update roles.
+      // A user can create their own profile document.
+      allow create: if isOwner(userId);
+      // A user can update their own profile, or an Admin/Owner can update any profile.
       allow update: if isOwner(userId) || hasAnyRole(['Admin', 'Owner']);
-      // Admins can delete users.
+      // Only an Admin or Owner can delete a user profile.
       allow delete: if hasAnyRole(['Admin', 'Owner']);
     }
 
-    // Helper functions for secure and efficient rule definitions
-    function allowGetByRole(roles) {
-       return isSuperAdmin() || hasAnyRole(roles);
+    // This is a catch-all rule that grants the super admin full read/write access to everything.
+    // It is evaluated first for the super admin, short-circuiting other rules.
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
     }
 
-    // LIST operations must be cheap. Only allow for SuperAdmin.
-    function allowListByRole() {
-        return isSuperAdmin();
+    // The rules below apply to non-super-admin users.
+    match /products/{docId} { 
+      allow get: if hasAnyRole(['Sales', 'Warehouse Manager', 'Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Sales', 'Warehouse Manager', 'Admin', 'Owner']);
+      allow write: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
     }
-    
-    function allowWriteByRole(roles) {
-        return isSuperAdmin() || hasAnyRole(roles);
+    match /categories/{docId}   { 
+      allow get: if hasAnyRole(['Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Admin', 'Owner']);
+      allow write: if hasAnyRole(['Admin', 'Owner']); 
     }
-
-    // Apply rules to all collections using the helper functions
-    match /products/{docId}      { allow get: if allowGetByRole(['Sales', 'Warehouse Manager', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Warehouse Manager', 'Admin', 'Owner']); }
-    match /categories/{docId}   { allow get: if allowGetByRole(['Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Admin', 'Owner']); }
-    match /inventoryMovements/{docId} { allow get: if allowGetByRole(['Warehouse Manager', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Warehouse Manager', 'Admin', 'Owner']); }
-    match /customers/{docId}    { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
-    match /orders/{docId}       { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
-    match /orderItems/{docId}   { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
-    match /payments/{docId}     { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
-    match /expenses/{docId}     { allow get: if allowGetByRole(['Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Admin', 'Owner']); }
-    match /returns/{docId}      { allow get: if allowGetByRole(['Sales', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Sales', 'Admin', 'Owner']); }
-    match /refunds/{docId}      { allow get: if allowGetByRole(['Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Admin', 'Owner']); }
-    match /badDebts/{docId}     { allow get: if allowGetByRole(['Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Admin', 'Owner']); }
-    match /suppliers/{docId}    { allow get: if allowGetByRole(['Warehouse Manager', 'Admin', 'Owner']); allow list: if allowListByRole(); allow write: if allowWriteByRole(['Warehouse Manager', 'Admin', 'Owner']); }
+    match /inventoryMovements/{docId} { 
+      allow get: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
+      allow write: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
+    }
+    match /customers/{docId}    { 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+    }
+    match /orders/{docId}       { 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+    }
+    match /orderItems/{docId}   { 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+    }
+    match /payments/{docId}     { 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+    }
+    match /expenses/{docId}     { 
+      allow get: if hasAnyRole(['Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Admin', 'Owner']);
+      allow write: if hasAnyRole(['Admin', 'Owner']); 
+    }
+    match /returns/{docId}      { 
+      allow get: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow write: if hasAnyRole(['Sales', 'Admin', 'Owner']); 
+    }
+    match /refunds/{docId}      { 
+      allow get: if hasAnyRole(['Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Admin', 'Owner']);
+      allow write: if hasAnyRole(['Admin', 'Owner']); 
+    }
+    match /badDebts/{docId}     { 
+      allow get: if hasAnyRole(['Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Admin', 'Owner']);
+      allow write: if hasAnyRole(['Admin', 'Owner']); 
+    }
+    match /suppliers/{docId}    { 
+      allow get: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
+      allow list: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
+      allow write: if hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']); 
+    }
   }
 }

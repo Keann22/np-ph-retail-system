@@ -73,7 +73,7 @@ async function ensureUserProfileExists(firestore: Firestore, firebaseUser: User)
             const firstUserSnapshot = await getDocs(firstUserQuery);
 
             let roles = ['Sales']; // Default role
-            if (firstUserSnapshot.empty) {
+            if (firstUserSnapshot.empty || (firstUserSnapshot.docs.length === 1 && firstUserSnapshot.docs[0].id === firebaseUser.uid)) {
                 // This is the very first user in the system.
                 roles = ['Owner', 'Admin', 'Warehouse Manager', 'Sales'];
             }
