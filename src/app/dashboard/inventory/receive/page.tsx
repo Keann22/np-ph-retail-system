@@ -135,9 +135,27 @@ export default function BulkReceivePage() {
 
     try {
       await runTransaction(firestore, async (transaction) => {
+        // --- READ PHASE ---
+        const productPromises = values.items.map(item => {
+            const productRef = doc(firestore, 'products', item.productId);
+            return transaction.get(productRef);
+        });
+
+        const productDocs = await Promise.all(productPromises);
+        const productDataMap = new Map<string, { productDoc: any; productData: any }>();
+        
+        for (let i = 0; i < values.items.length; i++) {
+            const productDoc = productDocs[i];
+            const item = values.items[i];
+            if (!productDoc.exists()) {
+                throw new Error(`Product "${item.productName}" not found.`);
+            }
+            productDataMap.set(item.productId, { productDoc, productData: productDoc.data() });
+        }
+        
+        // --- WRITE PHASE ---
         const totalExpense = values.items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
 
-        // Only create an expense if there is a cost.
         if (totalExpense > 0) {
             const expenseRef = doc(collection(firestore, 'expenses'));
             transaction.set(expenseRef, {
@@ -149,16 +167,10 @@ export default function BulkReceivePage() {
             });
         }
         
-        // Use a for...of loop to handle async operations inside correctly
         for (const item of values.items) {
-          const productRef = doc(firestore, 'products', item.productId);
-          const productDoc = await transaction.get(productRef);
-
-          if (!productDoc.exists()) {
-            throw new Error(`Product "${item.productName}" not found.`);
-          }
-
-          const productData = productDoc.data();
+          const { productDoc, productData } = productDataMap.get(item.productId)!;
+          const productRef = productDoc.ref;
+          
           const newQuantityOnHand = (productData.quantityOnHand || 0) + item.quantity;
 
           const newBatch = {
@@ -179,6 +191,7 @@ export default function BulkReceivePage() {
 
           const inventoryMovementRef = doc(collection(firestore, 'inventoryMovements'));
           transaction.set(inventoryMovementRef, {
+            id: inventoryMovementRef.id,
             productId: item.productId,
             quantityChange: item.quantity,
             movementType: 'RESTOCK',
