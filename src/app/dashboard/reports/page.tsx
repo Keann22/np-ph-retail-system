@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProcessedOrdersReport } from '@/components/dashboard/processed-orders-report';
 import { SalesReport } from '@/components/dashboard/sales-report';
 import { PnlReport } from '@/components/dashboard/reports/pnl-report';
-import { AccountsReceivableReport } from '@/components/dashboard/reports/ar-report';
 import { LayawayReport } from '@/components/dashboard/reports/layaway-report';
 import { CashFlowReport } from '@/components/dashboard/reports/cashflow-report';
 
@@ -16,7 +15,6 @@ export default function ReportsPage() {
           <TabsTrigger value="pnl-statement">P&L Statement</TabsTrigger>
           <TabsTrigger value="sales">Sales by Person</TabsTrigger>
           <TabsTrigger value="processed-orders">Processed Orders</TabsTrigger>
-          <TabsTrigger value="ar-report">Accounts Receivable</TabsTrigger>
           <TabsTrigger value="layaway-report">Lay-away Balances</TabsTrigger>
           <TabsTrigger value="cashflow-report">Cash Flow</TabsTrigger>
         </TabsList>
@@ -29,9 +27,6 @@ export default function ReportsPage() {
       </TabsContent>
        <TabsContent value="processed-orders">
         <ProcessedOrdersReport />
-      </TabsContent>
-       <TabsContent value="ar-report">
-        <AccountsReceivableReport />
       </TabsContent>
        <TabsContent value="layaway-report">
         <LayawayReport />
