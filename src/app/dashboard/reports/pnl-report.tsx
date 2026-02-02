@@ -8,6 +8,12 @@ import { ReportDateFilter } from '@/components/dashboard/reports/report-date-fil
 import { Separator } from '@/components/ui/separator';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, query } from 'firebase/firestore';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 
 type Order = {
     id: string;
@@ -103,7 +109,7 @@ export function PnlReport() {
 
     const reportData = useMemo(() => {
         if (!orders || !allOrderItems || !expenses || !badDebts) {
-             return { revenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, badDebtExpense: 0, netProfit: 0 };
+             return { revenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, operatingExpensesBreakdown: {} as Record<string, number>, badDebtExpense: 0, netProfit: 0 };
         }
         
         const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
@@ -113,23 +119,29 @@ export function PnlReport() {
         
         const totalCogs = relevantOrderItems.reduce((sum, item) => sum + ((item.costPriceAtSale || 0) * (item.quantity || 0)), 0);
 
-        const operatingExpenses = expenses.reduce((sum, expense) => {
+        const operatingExpensesBreakdown = expenses.reduce((acc, expense) => {
             if (expense.category.toLowerCase() !== 'cost of goods sold') {
-                return sum + expense.amount;
+                if (!acc[expense.category]) {
+                    acc[expense.category] = 0;
+                }
+                acc[expense.category] += expense.amount;
             }
-            return sum;
-        }, 0);
-        
+            return acc;
+        }, {} as Record<string, number>);
+
+        const totalOperatingExpenses = Object.values(operatingExpensesBreakdown).reduce((sum, amount) => sum + amount, 0);
+
         const totalBadDebt = badDebts.reduce((sum, debt) => sum + debt.amount, 0);
 
         const grossProfit = totalRevenue - totalCogs;
-        const netProfit = grossProfit - operatingExpenses - totalBadDebt;
+        const netProfit = grossProfit - totalOperatingExpenses - totalBadDebt;
 
         return {
             revenue: totalRevenue,
             cogs: totalCogs,
             grossProfit,
-            operatingExpenses,
+            operatingExpenses: totalOperatingExpenses,
+            operatingExpensesBreakdown,
             badDebtExpense: totalBadDebt,
             netProfit,
         };
@@ -166,7 +178,26 @@ export function PnlReport() {
                         <Separator />
                         <ReportItem label="Gross Profit" value={reportData.grossProfit} isBold />
                         <Separator />
-                        <ReportItem label="Operating Expenses" value={-reportData.operatingExpenses} />
+                        <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="operating-expenses" className="border-b-0">
+                                <AccordionTrigger className="py-2 font-normal hover:no-underline">
+                                <div className="flex flex-1 justify-between">
+                                    <span>Operating Expenses</span>
+                                    <span>₱{(-reportData.operatingExpenses).toFixed(2)}</span>
+                                </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="pl-8 pt-2">
+                                {Object.entries(reportData.operatingExpensesBreakdown)
+                                    .sort(([catA], [catB]) => catA.localeCompare(catB))
+                                    .map(([category, amount]) => (
+                                    <div key={category} className="flex justify-between py-1 text-sm text-muted-foreground">
+                                        <span>{category}</span>
+                                        <span>₱{(-amount).toFixed(2)}</span>
+                                    </div>
+                                    ))}
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
                         <ReportItem label="Bad Debt Expense" value={-reportData.badDebtExpense} />
                         <Separator />
                         <ReportItem label="Net Profit" value={reportData.netProfit} isBold isNegative={reportData.netProfit < 0} />
