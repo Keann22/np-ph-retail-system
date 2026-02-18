@@ -5,68 +5,67 @@ service cloud.firestore {
 
     // --- Helper Functions ---
 
-    function isSuperAdmin() {
-      // Updated to match the owner's active email
-      return request.auth != null && request.auth.token.email == 'ornoskeneth@gmail.com';
-    }
-
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      // Owner's active email
+      return isSignedIn() && request.auth.token.email == 'ornoskeneth@gmail.com';
     }
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Safer, non-recursive role check
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function hasAnyRole(roles) {
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return isSignedIn()
-        && userDoc != null
-        && userDoc.data.size() != 0
-        && 'roles' in userDoc.data
-        && userDoc.data.roles.hasAny(roles);
+      return isSignedIn() 
+        && 'roles' in getUserData() 
+        && getUserData().roles.hasAny(roles);
     }
 
 
     // --- Collection Rules ---
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      // Allow Admins and Owners to list users for management
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      // isOwner branch is evaluated first and doesn't call hasAnyRole, preventing recursion
+      allow get: if isOwner(userId) || isSuperAdmin() || (isSignedIn() && getUserData().roles.hasAny(['Admin', 'Owner']));
+      allow list: if isSuperAdmin() || (isSignedIn() && getUserData().roles.hasAny(['Admin', 'Owner']));
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow delete: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow update: if isOwner(userId) || isSuperAdmin() || (isSignedIn() && getUserData().roles.hasAny(['Admin', 'Owner']));
+      allow delete: if isSuperAdmin() || (isSignedIn() && getUserData().roles.hasAny(['Admin', 'Owner']));
     }
 
     match /products/{productId} {
-      allow list: if isSignedIn();
-      allow get: if isSignedIn();
-      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Admin', 'Owner']);
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Warehouse Manager', 'Admin', 'Owner']);
     }
     
     match /categories/{categoryId} {
-      allow list: if isSignedIn();
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow read: if isSignedIn();
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /inventoryMovements/{inventoryMovementId} {
-      allow list: if isSignedIn();
-      allow get: if isSuperAdmin() || hasAnyRole(['Inventory', 'Admin', 'Owner']);
-      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Admin', 'Owner']);
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Warehouse Manager', 'Admin', 'Owner', 'Sales']);
     }
 
     match /customers/{customerId} {
-      allow list: if isSignedIn();
-      allow get: if isSignedIn(); // Loosened so Inventory can see names for printing
+      allow list: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner', 'Inventory', 'Warehouse Manager']);
+      allow get: if isSignedIn(); 
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /orders/{orderId} {
       allow list: if isSignedIn();
       allow get: if isSignedIn();
-      allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner', 'Inventory', 'Warehouse Manager']);
     }
 
     match /orderItems/{orderItemId} {
@@ -76,21 +75,17 @@ service cloud.firestore {
     }
 
     match /payments/{paymentId} {
-      allow list: if isSignedIn();
+      allow list: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
       allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /expenses/{expenseId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow read, write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /recurringExpenses/{recurringExpenseId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow read, write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /returns/{returnId} {
@@ -100,21 +95,15 @@ service cloud.firestore {
     }
 
     match /refunds/{refundId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow read, write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /badDebts/{badDebtId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow read, write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /suppliers/{supplierId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
-      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow read, write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
   }
 }
