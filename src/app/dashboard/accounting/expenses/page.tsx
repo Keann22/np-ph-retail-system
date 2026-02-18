@@ -41,6 +41,7 @@ export default function ExpensesPage() {
 
   const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
 
+  // CRITICAL: Strict role check before query
   const expensesQuery = useMemoFirebase(
     () => (firestore && user && isManagement ? query(collection(firestore, 'expenses'), orderBy('expenseDate', 'desc')) : null),
     [firestore, user, isManagement]
@@ -54,10 +55,10 @@ export default function ExpensesPage() {
 
   if (userProfile && !isManagement) {
     return (
-        <Card className="m-6">
+        <Card className="m-6 border-destructive/20 bg-destructive/5">
             <CardHeader>
-                <CardTitle>Access Denied</CardTitle>
-                <CardDescription>You do not have permission to view financial records.</CardDescription>
+                <CardTitle className="text-destructive">Access Denied</CardTitle>
+                <CardDescription>You do not have permission to view financial records or expenses.</CardDescription>
             </CardHeader>
         </Card>
     );

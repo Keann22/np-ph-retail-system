@@ -38,6 +38,7 @@ export default function RecurringExpensesPage() {
 
   const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
 
+  // CRITICAL: Strict role check before query
   const recurringExpensesQuery = useMemoFirebase(
     () => (firestore && user && isManagement ? query(collection(firestore, 'recurringExpenses'), orderBy('dayOfMonth', 'asc')) : null),
     [firestore, user, isManagement]
@@ -46,9 +47,9 @@ export default function RecurringExpensesPage() {
 
   if (userProfile && !isManagement) {
     return (
-        <Card className="m-6">
+        <Card className="m-6 border-destructive/20 bg-destructive/5">
             <CardHeader>
-                <CardTitle>Access Denied</CardTitle>
+                <CardTitle className="text-destructive">Access Denied</CardTitle>
                 <CardDescription>You do not have permission to view recurring expenses.</CardDescription>
             </CardHeader>
         </Card>

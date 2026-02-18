@@ -10,16 +10,22 @@ import { AccountsReceivableReport } from '@/app/dashboard/reports/ar-report';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { SalesByProductReport } from '@/components/dashboard/reports/sales-by-product-report';
 import { ToOrderReport } from '@/components/dashboard/reports/to-order-report';
+import { useMemo } from 'react';
 
 export default function ReportsPage() {
   const { userProfile } = useUserProfile();
   
-  const roles = userProfile?.roles || [];
-  const isInventory = roles.includes('Inventory') && !roles.includes('Owner') && !roles.includes('Admin');
-  const isManagement = roles.includes('Owner') || roles.includes('Admin');
+  const roles = useMemo(() => userProfile?.roles || [], [userProfile]);
+  
+  // Strict role flags
+  const isInventory = useMemo(() => roles.includes('Inventory') && !roles.includes('Owner') && !roles.includes('Admin'), [roles]);
+  const isManagement = useMemo(() => roles.includes('Owner') || roles.includes('Admin'), [roles]);
+  const isSales = useMemo(() => roles.includes('Sales'), [roles]);
 
   // Default tab based on role
   const defaultValue = isInventory ? "processed-orders" : "pnl-statement";
+
+  if (!userProfile) return <div className="p-8 text-center">Loading permissions...</div>;
 
   return (
     <Tabs defaultValue={defaultValue} className="space-y-4">
@@ -27,12 +33,21 @@ export default function ReportsPage() {
         <TabsList className="flex-wrap h-auto">
           {isManagement && <TabsTrigger value="pnl-statement">P&L Statement</TabsTrigger>}
           {isManagement && <TabsTrigger value="sales">Sales by Person</TabsTrigger>}
-          <TabsTrigger value="processed-orders">Processed Orders (Printing)</TabsTrigger>
+          
+          {(isManagement || isSales || isInventory) && (
+            <TabsTrigger value="processed-orders">Processed Orders (Printing)</TabsTrigger>
+          )}
+          
           <TabsTrigger value="sales-product">Sales by Product</TabsTrigger>
           <TabsTrigger value="to-order">To Order (Procurement)</TabsTrigger>
-          {isManagement && <TabsTrigger value="layaway-report">Lay-away Balances</TabsTrigger>}
-          {isManagement && <TabsTrigger value="ar-report">Accounts Receivable</TabsTrigger>}
-          {isManagement && <TabsTrigger value="cashflow-report">Cash Flow</TabsTrigger>}
+          
+          {isManagement && (
+            <>
+                <TabsTrigger value="layaway-report">Lay-away Balances</TabsTrigger>
+                <TabsTrigger value="ar-report">Accounts Receivable</TabsTrigger>
+                <TabsTrigger value="cashflow-report">Cash Flow</TabsTrigger>
+            </>
+          )}
         </TabsList>
       </div>
       
@@ -48,9 +63,11 @@ export default function ReportsPage() {
         </TabsContent>
       )}
 
-      <TabsContent value="processed-orders">
-        <ProcessedOrdersReport />
-      </TabsContent>
+      {(isManagement || isSales || isInventory) && (
+        <TabsContent value="processed-orders">
+            <ProcessedOrdersReport />
+        </TabsContent>
+      )}
 
       <TabsContent value="sales-product">
         <SalesByProductReport />
@@ -61,21 +78,19 @@ export default function ReportsPage() {
       </TabsContent>
 
       {isManagement && (
-        <TabsContent value="layaway-report">
-            <LayawayReport />
-        </TabsContent>
-      )}
+        <>
+            <TabsContent value="layaway-report">
+                <LayawayReport />
+            </TabsContent>
 
-      {isManagement && (
-        <TabsContent value="ar-report">
-            <AccountsReceivableReport />
-        </TabsContent>
-      )}
+            <TabsContent value="ar-report">
+                <AccountsReceivableReport />
+            </TabsContent>
 
-      {isManagement && (
-        <TabsContent value="cashflow-report">
-            <CashFlowReport />
-        </TabsContent>
+            <TabsContent value="cashflow-report">
+                <CashFlowReport />
+            </TabsContent>
+        </>
       )}
     </Tabs>
   );

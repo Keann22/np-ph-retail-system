@@ -5,6 +5,7 @@ import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useMemo } from 'react';
 import { Skeleton } from '../ui/skeleton';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 type Order = {
     id: string;
@@ -22,21 +23,29 @@ type Customer = {
 export function RecentSales() {
     const firestore = useFirestore();
     const { user } = useUser();
+    const { userProfile } = useUserProfile();
+
+    // Check permissions: Inventory ONLY users cannot see customer list
+    const canSeeCustomers = useMemo(() => {
+        if (!userProfile) return false;
+        return userProfile.roles.some(r => ['Owner', 'Admin', 'Sales'].includes(r));
+    }, [userProfile]);
 
     const recentOrdersQuery = useMemoFirebase(() => {
         if (!firestore || !user) return null;
         return query(collection(firestore, 'orders'), orderBy('orderDate', 'desc'), limit(5));
     }, [firestore, user]);
 
+    // ONLY fetch customers if authorized
     const customersQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
+        if (!firestore || !user || !canSeeCustomers) return null;
         return collection(firestore, 'customers');
-    }, [firestore, user]);
+    }, [firestore, user, canSeeCustomers]);
 
     const { data: orders, isLoading: isLoadingOrders } = useCollection<Order>(recentOrdersQuery);
     const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
 
-    const isLoading = isLoadingOrders || isLoadingCustomers;
+    const isLoading = isLoadingOrders || (canSeeCustomers && isLoadingCustomers);
 
     const customerMap = useMemo(() => {
         if (!customers) return new Map<string, Omit<Customer, 'id'>>();
@@ -46,17 +55,17 @@ export function RecentSales() {
     const recentSales = useMemo(() => {
         if (!orders) return [];
         return orders.map(order => {
-            const customer = customerMap.get(order.customerId);
-            const name = customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown Customer';
+            const customer = canSeeCustomers ? customerMap.get(order.customerId) : null;
+            const name = customer ? `${customer.firstName} ${customer.lastName}` : 'Restricted Customer';
             const fallback = name.split(' ').map(n => n[0]).join('');
             return {
                 name,
-                email: customer?.email || '',
+                email: customer?.email || (canSeeCustomers ? '' : 'Access restricted'),
                 amount: `+₱${order.totalAmount.toFixed(2)}`,
                 avatarFallback: fallback.length > 0 ? fallback : 'UC'
             }
         });
-    }, [orders, customerMap]);
+    }, [orders, customerMap, canSeeCustomers]);
 
     if (isLoading) {
         return (

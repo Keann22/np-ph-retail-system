@@ -45,24 +45,25 @@ export default function DashboardPage() {
     const router = useRouter();
 
     const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
+    const isSales = useMemo(() => userProfile?.roles.includes('Sales'), [userProfile]);
     const isInventoryOnly = useMemo(() => userProfile?.roles.includes('Inventory') && !userProfile?.roles.includes('Sales') && !userProfile?.roles.includes('Admin') && !userProfile?.roles.includes('Owner'), [userProfile]);
 
-    // Redirect Inventory users away from the dashboard
+    // Redirect Inventory users away from the dashboard immediately
     useEffect(() => {
         if (isInventoryOnly) {
-            router.push('/dashboard/products');
+            router.replace('/dashboard/products');
         }
     }, [isInventoryOnly, router]);
 
-    // Queries - Conditional based on role to prevent permission errors
+    // Queries - STRICT conditional checks based on role to prevent permission errors
     const ordersQuery = useMemoFirebase(
-        () => (firestore && user && !isInventoryOnly ? collection(firestore, 'orders') : null),
-        [firestore, user, isInventoryOnly]
+        () => (firestore && user && (isManagement || isSales) ? collection(firestore, 'orders') : null),
+        [firestore, user, isManagement, isSales]
     );
 
     const orderItemsQuery = useMemoFirebase(
-        () => (firestore && user && !isInventoryOnly ? collection(firestore, 'orderItems') : null),
-        [firestore, user, isInventoryOnly]
+        () => (firestore && user && (isManagement || isSales) ? collection(firestore, 'orderItems') : null),
+        [firestore, user, isManagement, isSales]
     );
 
     const expensesQuery = useMemoFirebase(
@@ -123,7 +124,12 @@ export default function DashboardPage() {
     }, [orders, orderItems, expenses, isManagement]);
 
   if (isInventoryOnly) {
-    return <div className="flex items-center justify-center min-h-[50vh]">Redirecting to Inventory...</div>;
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+            <Skeleton className="h-8 w-48" />
+            <p className="text-muted-foreground">Redirecting to Inventory workspace...</p>
+        </div>
+    );
   }
 
   return (
@@ -212,9 +218,11 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-      <div className="grid gap-4 md:gap-8">
-        <AiRecommendations />
-      </div>
+      {(isManagement || isSales) && (
+        <div className="grid gap-4 md:gap-8">
+            <AiRecommendations />
+        </div>
+      )}
     </>
   );
 }

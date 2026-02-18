@@ -11,13 +11,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   Table,
   TableBody,
   TableCell,
@@ -30,8 +23,10 @@ import { collection } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddSupplierDialog } from '@/components/dashboard/add-supplier-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ViewSupplierHistoryDialog } from '@/components/dashboard/view-supplier-history-dialog';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 // Matches the Firestore document structure for a supplier
 type Supplier = {
@@ -47,13 +42,28 @@ type Supplier = {
 export default function SuppliersPage() {
   const firestore = useFirestore();
   const { user } = useUser();
+  const { userProfile } = useUserProfile();
   const [viewingHistorySupplier, setViewingHistorySupplier] = useState<Supplier | null>(null);
 
+  const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
+
+  // CRITICAL: Strict role check before query
   const suppliersQuery = useMemoFirebase(
-    () => (firestore && user ? collection(firestore, 'suppliers') : null),
-    [firestore, user]
+    () => (firestore && user && isManagement ? collection(firestore, 'suppliers') : null),
+    [firestore, user, isManagement]
   );
   const { data: suppliers, isLoading } = useCollection<Supplier>(suppliersQuery);
+
+  if (userProfile && !isManagement) {
+    return (
+        <Card className="m-6 border-destructive/20 bg-destructive/5">
+            <CardHeader>
+                <CardTitle className="text-destructive">Access Denied</CardTitle>
+                <CardDescription>You do not have permission to view the supplier database.</CardDescription>
+            </CardHeader>
+        </Card>
+    );
+  }
 
   return (
     <>
