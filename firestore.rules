@@ -52,6 +52,7 @@ service cloud.firestore {
     }
 
     match /inventoryMovements/{inventoryMovementId} {
+      // Simplified read access for any signed-in user to track stock history
       allow read: if isSignedIn();
       allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Warehouse Manager', 'Admin', 'Owner', 'Sales']);
     }
