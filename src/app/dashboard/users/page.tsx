@@ -47,13 +47,12 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { EditUserDialog } from '@/components/dashboard/edit-user-dialog';
 
-// Matches the Firestore document structure for a user profile
 export type UserProfile = {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
-  roles: ('Owner' | 'Admin' | 'Warehouse Manager' | 'Sales')[];
+  roles: ('Owner' | 'Admin' | 'Inventory' | 'Sales')[];
 };
 
 export default function UsersPage() {
@@ -65,13 +64,25 @@ export default function UsersPage() {
   const [deletingUser, setDeletingUser] = useState<UserProfile | null>(null);
   const { toast } = useToast();
 
+  const canManageUsers = currentUserProfile && (currentUserProfile.roles.includes('Owner') || currentUserProfile.roles.includes('Admin'));
+
+  // CRITICAL FIX: Only try to list users if authorized. This prevents the crash for Inventory role.
   const usersQuery = useMemoFirebase(
-    () => (firestore && currentUserProfile ? collection(firestore, 'users') : null),
-    [firestore, currentUserProfile]
+    () => (firestore && canManageUsers ? collection(firestore, 'users') : null),
+    [firestore, canManageUsers]
   );
   const { data: users, isLoading } = useCollection<UserProfile>(usersQuery);
   
-  const canManageUsers = currentUserProfile && (currentUserProfile.roles.includes('Owner') || currentUserProfile.roles.includes('Admin'));
+  if (currentUserProfile && !canManageUsers) {
+    return (
+        <Card className="m-6">
+            <CardHeader>
+                <CardTitle>Access Denied</CardTitle>
+                <CardDescription>You do not have permission to view the user directory.</CardDescription>
+            </CardHeader>
+        </Card>
+    );
+  }
 
   const handlePasswordReset = (email: string) => {
     initiatePasswordReset(auth, email);
@@ -79,29 +90,16 @@ export default function UsersPage() {
 
   const confirmDelete = () => {
     if (!deletingUser || !firestore) return;
-
-    // A user cannot delete themselves
     if (currentUserProfile?.id === deletingUser.id) {
-        toast({
-            variant: 'destructive',
-            title: 'Action Forbidden',
-            description: 'You cannot delete your own account.',
-        });
+        toast({ variant: 'destructive', title: 'Action Forbidden', description: 'You cannot delete your own account.' });
         setDeletingUser(null);
         return;
     }
-    
     const userDocRef = doc(firestore, 'users', deletingUser.id);
     deleteDocumentNonBlocking(userDocRef);
-    
-    toast({
-      title: "User Profile Deleted",
-      description: `${deletingUser.email} has been removed from the user list.`,
-    });
-
+    toast({ title: "User Profile Deleted", description: `${deletingUser.email} has been removed.` });
     setDeletingUser(null);
   };
-
 
   return (
     <>
@@ -109,11 +107,8 @@ export default function UsersPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="font-headline">User Management</CardTitle>
-            <CardDescription>
-              View and manage user roles and permissions. New users can be added via the sign-up page.
-            </CardDescription>
+            <CardDescription>Manage user roles and permissions.</CardDescription>
           </div>
-          {/* <Button>Add User</Button> */}
         </CardHeader>
         <CardContent>
           <Table>
@@ -122,124 +117,63 @@ export default function UsersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Roles</TableHead>
-                {canManageUsers && (
-                  <TableHead>
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
-                )}
+                <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
-                      <TableCell>
-                        <div className="flex items-center gap-4">
-                          <Skeleton className="h-10 w-10 rounded-full" />
-                          <div className='space-y-2'>
-                            <Skeleton className="h-4 w-32" />
-                          </div>
-                        </div>
-                      </TableCell>
+                      <TableCell><div className="flex items-center gap-4"><Skeleton className="h-10 w-10 rounded-full" /><Skeleton className="h-4 w-32" /></div></TableCell>
                       <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
-                      {canManageUsers && (
-                        <TableCell>
-                            <Skeleton className="h-8 w-8 ml-auto" />
-                        </TableCell>
-                      )}
+                      <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                   </TableRow>
               ))}
               {users && users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>
                     <div className="flex items-center gap-4">
-                      <Avatar>
-                          <AvatarFallback>{user.firstName?.charAt(0)}{user.lastName?.charAt(0)}</AvatarFallback>
-                      </Avatar>
+                      <Avatar><AvatarFallback>{user.firstName?.charAt(0)}{user.lastName?.charAt(0)}</AvatarFallback></Avatar>
                       <div className="font-medium">{user.firstName} {user.lastName}</div>
                     </div>
                   </TableCell>
                   <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                      <div className='flex flex-wrap gap-1'>
-                          {user.roles.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
-                      </div>
+                  <TableCell><div className='flex flex-wrap gap-1'>{user.roles.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}</div></TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button aria-haspopup="true" size="icon" variant="ghost" disabled={currentUserProfile?.id === user.id}>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => setEditingUser(user)}>Edit User</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setEditingRolesUser(user)}>Edit Roles</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handlePasswordReset(user.email)}>Send Password Reset</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive" onClick={() => setDeletingUser(user)}>Delete User</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
-                  {canManageUsers && (
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button aria-haspopup="true" size="icon" variant="ghost" disabled={currentUserProfile?.id === user.id}>
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => setEditingUser(user)}>Edit User</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setEditingRolesUser(user)}>Edit Roles</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handlePasswordReset(user.email)}>
-                            Send Password Reset
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                            onClick={() => setDeletingUser(user)}
-                          >
-                            Delete User
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          {!isLoading && (!users || users.length === 0) && (
-              <div className="flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg p-12 mt-4">
-                  <p className="text-lg font-semibold">No users found</p>
-                  <p className="text-muted-foreground mt-2">
-                      User documents need to be created in Firestore.
-                  </p>
-              </div>
-          )}
         </CardContent>
-        {users && users.length > 0 && (
-          <CardFooter>
-              <div className="text-xs text-muted-foreground">
-              Showing <strong>1-{users.length}</strong> of <strong>{users.length}</strong> users
-              </div>
-          </CardFooter>
-        )}
       </Card>
-      <EditUserDialog
-        user={editingUser}
-        open={!!editingUser}
-        onOpenChange={(isOpen) => !isOpen && setEditingUser(null)}
-      />
-      <EditUserRolesDialog 
-        user={editingRolesUser}
-        open={!!editingRolesUser}
-        onOpenChange={(isOpen) => !isOpen && setEditingRolesUser(null)}
-      />
+      <EditUserDialog user={editingUser} open={!!editingUser} onOpenChange={(isOpen) => !isOpen && setEditingUser(null)} />
+      <EditUserRolesDialog user={editingRolesUser} open={!!editingRolesUser} onOpenChange={(isOpen) => !isOpen && setEditingRolesUser(null)} />
       <AlertDialog open={!!deletingUser} onOpenChange={(isOpen) => !isOpen && setDeletingUser(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-                This will delete the user profile for <strong>{deletingUser?.email}</strong>. This action cannot be undone and will remove them from this list. It will not delete their login account.
-            </AlertDialogDescription>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>This will delete the profile for <strong>{deletingUser?.email}</strong>. This cannot be undone.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={confirmDelete}
-            >
-                Delete
-            </AlertDialogAction>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={confirmDelete}>Delete</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

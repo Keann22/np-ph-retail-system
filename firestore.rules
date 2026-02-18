@@ -6,8 +6,8 @@ service cloud.firestore {
     // --- Helper Functions ---
 
     function isSuperAdmin() {
-      // Fast, query-safe check for the super admin email.
-      return request.auth != null && request.auth.token.email == 'keneth.ornos@owner.com';
+      // Updated to match the owner's active email
+      return request.auth != null && request.auth.token.email == 'ornoskeneth@gmail.com';
     }
 
     function isSignedIn() {
@@ -15,15 +15,11 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      // Fast, query-safe check for document ownership.
       return isSignedIn() && request.auth.uid == userId;
     }
 
     function hasAnyRole(roles) {
-      // Performs a document read, so this is NOT safe for list queries.
-      // It is safe for get, create, update, delete.
       let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      // Robust check for document and field existence.
       return isSignedIn()
         && userDoc != null
         && userDoc.data.size() != 0
@@ -35,22 +31,18 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /users/{userId} {
-      // A user can always get their own profile. Admins can get any.
-      allow get: if isOwner(userId) || isSuperAdmin() || hasAnyRole(['Admin']);
-      // LIST is restricted to Super Admin for query safety.
-      allow list: if isSuperAdmin();
-      // Any signed-in user can create their own profile document.
+      allow get: if isOwner(userId) || isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      // Allow Admins and Owners to list users for management
+      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow create: if isOwner(userId);
-      // A user can update their own profile. Admins can update any.
-      allow update: if isOwner(userId) || isSuperAdmin() || hasAnyRole(['Admin']);
-      // Only Admins/Owners can delete users.
+      allow update: if isOwner(userId) || isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow delete: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /products/{productId} {
       allow list: if isSignedIn();
       allow get: if isSignedIn();
-      allow write: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
+      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Admin', 'Owner']);
     }
     
     match /categories/{categoryId} {
@@ -61,25 +53,25 @@ service cloud.firestore {
 
     match /inventoryMovements/{inventoryMovementId} {
       allow list: if isSignedIn();
-      allow get: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
-      allow write: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
+      allow get: if isSuperAdmin() || hasAnyRole(['Inventory', 'Admin', 'Owner']);
+      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Admin', 'Owner']);
     }
 
     match /customers/{customerId} {
       allow list: if isSignedIn();
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow get: if isSignedIn(); // Loosened so Inventory can see names for printing
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /orders/{orderId} {
       allow list: if isSignedIn();
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow get: if isSignedIn();
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /orderItems/{orderItemId} {
       allow list: if isSignedIn();
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow get: if isSignedIn();
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
@@ -90,13 +82,13 @@ service cloud.firestore {
     }
 
     match /expenses/{expenseId} {
-      allow list: if isSignedIn();
+      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /recurringExpenses/{recurringExpenseId} {
-      allow list: if isSignedIn();
+      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
@@ -108,21 +100,21 @@ service cloud.firestore {
     }
 
     match /refunds/{refundId} {
-      allow list: if isSignedIn();
+      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /badDebts/{badDebtId} {
-      allow list: if isSignedIn();
+      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
 
     match /suppliers/{supplierId} {
-      allow list: if isSignedIn();
-      allow get: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
-      allow write: if isSuperAdmin() || hasAnyRole(['Warehouse Manager', 'Admin', 'Owner']);
+      allow list: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow get: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
+      allow write: if isSuperAdmin() || hasAnyRole(['Admin', 'Owner']);
     }
   }
 }
