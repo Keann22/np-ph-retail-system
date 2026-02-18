@@ -73,7 +73,7 @@ export function ProcessedOrdersReport() {
   const customersQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'customers') : null), [firestore, user]);
   const { data: customers, isLoading: isLoadingCustomers } = useCollection<Customer>(customersQuery);
 
-  const itemsQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'orderItems')) : null, [firestore, user]);
+  const itemsQuery = useMemoFirebase(() => (firestore && user ? collection(firestore, 'orderItems') : null), [firestore, user]);
   const { data: allOrderItems, isLoading: isLoadingItems } = useCollection<OrderItem>(itemsQuery);
 
   const isLoading = isLoadingOrders || isLoadingCustomers || isLoadingItems;
