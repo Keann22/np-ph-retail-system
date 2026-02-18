@@ -1,0 +1,133 @@
+'use client';
+
+import { useMemo } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where, orderBy } from 'firebase/firestore';
+import { format } from 'date-fns';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+type InventoryMovement = {
+  id: string;
+  productId: string;
+  quantityChange: number;
+  movementType: string;
+  timestamp: string; // ISO string
+  reason?: string;
+};
+
+type Product = {
+  id: string;
+  name: string;
+};
+
+interface ViewProductHistoryDialogProps {
+  product: Product | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+const getMovementVariant = (type: string) => {
+    const t = type.toLowerCase();
+    if (t === 'sale' || t.includes('adjustment_down')) return 'destructive';
+    if (t === 'restock' || t === 'initial_stock' || t.includes('adjustment_up')) return 'outline';
+    return 'secondary';
+}
+
+export function ViewProductHistoryDialog({ product, open, onOpenChange }: ViewProductHistoryDialogProps) {
+  const firestore = useFirestore();
+  const { user } = useUser();
+
+  const movementsQuery = useMemoFirebase(() => {
+    if (!firestore || !user || !product) return null;
+    return query(
+      collection(firestore, 'inventoryMovements'),
+      where('productId', '==', product.id),
+      orderBy('timestamp', 'desc')
+    );
+  }, [firestore, user, product]);
+
+  const { data: movements, isLoading } = useCollection<InventoryMovement>(movementsQuery);
+
+  if (!product) {
+    return null;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Inventory History: {product.name}</DialogTitle>
+          <DialogDescription>
+            Audit log of all stock changes for this product.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Qty Change</TableHead>
+                <TableHead>Reason / Reference</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading &&
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-4 w-12 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                  </TableRow>
+                ))}
+              {!isLoading && movements && movements.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell className="text-xs whitespace-nowrap">
+                    {format(new Date(m.timestamp), 'MMM d, yyyy h:mm a')}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getMovementVariant(m.movementType)} className="capitalize">
+                      {m.movementType.replace('_', ' ')}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className={cn(
+                    "text-right font-medium",
+                    m.quantityChange > 0 ? "text-green-600" : "text-destructive"
+                  )}>
+                    {m.quantityChange > 0 ? `+${m.quantityChange}` : m.quantityChange}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground italic">
+                    {m.reason || '—'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {!isLoading && (!movements || movements.length === 0) && (
+            <div className="flex flex-col items-center justify-center text-center py-12">
+              <p className="text-muted-foreground italic">No movement history found for this product.</p>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

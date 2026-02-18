@@ -49,6 +49,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EditProductDialog } from '@/components/dashboard/edit-product-dialog';
+import { ViewProductHistoryDialog } from '@/components/dashboard/view-product-history-dialog';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 // Matches the Firestore document structure for a product
@@ -88,6 +89,7 @@ export default function ProductsPage() {
   const { userProfile } = useUserProfile();
   const [deletingProduct, setDeletingProduct] = useState<FormattedProduct | null>(null);
   const [editingProduct, setEditingProduct] = useState<FormattedProduct | null>(null);
+  const [viewingHistoryProduct, setViewingHistoryProduct] = useState<FormattedProduct | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -389,7 +391,7 @@ export default function ProductsPage() {
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => setEditingProduct(product)}>Edit</DropdownMenuItem>
                         <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                        <DropdownMenuItem>View History</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setViewingHistoryProduct(product)}>View History</DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive focus:bg-destructive/10"
                           onClick={() => setDeletingProduct(product)}
@@ -446,6 +448,12 @@ export default function ProductsPage() {
         product={editingProduct}
         open={!!editingProduct}
         onOpenChange={(isOpen) => !isOpen && setEditingProduct(null)}
+      />
+
+      <ViewProductHistoryDialog
+        product={viewingHistoryProduct}
+        open={!!viewingHistoryProduct}
+        onOpenChange={(isOpen) => !isOpen && setViewingHistoryProduct(null)}
       />
 
       <AlertDialog open={!!deletingProduct} onOpenChange={(isOpen) => !isOpen && setDeletingProduct(null)}>
