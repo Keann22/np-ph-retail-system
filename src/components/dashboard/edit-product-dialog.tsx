@@ -18,10 +18,9 @@ import type { FormattedProduct } from '@/app/dashboard/products/page';
 
 type Supplier = { id: string; name: string; [key: string]: any;};
 
-// Schema for editing a product. Note some fields like stock and cost are not directly editable here.
 const editProductSchema = z.object({
   name: z.string().min(1, "Product name is required"),
-  sku: z.string().min(1, "SKU is required"), // Keep SKU but make it read-only in the form
+  sku: z.string().min(1, "SKU is required"),
   description: z.string().optional(),
   categoryId: z.string().optional(),
   supplierId: z.string().optional(),
@@ -40,13 +39,17 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const { userProfile } = useUserProfile();
 
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [supplierSearch, setSupplierSearch] = useState('');
 
+  const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
+
   const suppliersQuery = useMemoFirebase(
     () => {
-      if (!firestore || !user || supplierSearch.length < 1) return null;
+      // FIX: Only query suppliers if user is Management AND has typed a search term.
+      if (!firestore || !user || !isManagement || supplierSearch.length < 1) return null;
       const searchTermCapitalized = supplierSearch.charAt(0).toUpperCase() + supplierSearch.slice(1);
       return query(
         collection(firestore, 'suppliers'),
@@ -56,7 +59,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
         limit(10)
       );
     },
-    [firestore, user, supplierSearch]
+    [firestore, user, supplierSearch, isManagement]
   );
   const { data: supplierResults, isLoading: isLoadingSuppliers } = useCollection<Supplier>(suppliersQuery);
 
@@ -65,7 +68,6 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
     resolver: zodResolver(editProductSchema),
   });
 
-  // When the dialog opens, reset the form with the product's current values
   useEffect(() => {
     if (product && open) {
       form.reset({
@@ -76,8 +78,9 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
         supplierId: product.supplierId,
         sellingPrice: product.sellingPrice,
       });
-      // Fetch and set the initial selected supplier
-      if (product.supplierId && firestore) {
+      
+      // FIX: Guard the direct document fetch for supplier info too.
+      if (product.supplierId && firestore && isManagement) {
         const supplierDocRef = doc(firestore, 'suppliers', product.supplierId);
         getDoc(supplierDocRef).then(docSnap => {
             if (docSnap.exists()) {
@@ -90,7 +93,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
       setSelectedSupplier(null);
       setSupplierSearch('');
     }
-  }, [product, open, form, firestore]);
+  }, [product, open, form, firestore, isManagement]);
   
 
   if (!product) {
@@ -100,8 +103,6 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
   async function onSubmit(values: EditProductFormValues) {
     if (!firestore || !product) return;
     
-    // Check if SKU was changed and if it's unique (if we allow SKU editing)
-    // Note: SKU is read-only for now, so this check is a safeguard.
     if (values.sku !== product.sku) {
         const productsCollection = collection(firestore, 'products');
         const q = query(productsCollection, where("sku", "==", values.sku));
@@ -165,7 +166,6 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
                         <FormItem>
                         <FormLabel>SKU</FormLabel>
                         <FormControl>
-                            {/* Making SKU read-only as it's a critical identifier */}
                             <Input placeholder="e.g., AG-SUS-001" {...field} readOnly className="bg-muted"/>
                         </FormControl>
                         <FormMessage />
@@ -198,63 +198,65 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={form.control}
-                    name="supplierId"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                            <FormLabel>Supplier</FormLabel>
-                            {selectedSupplier ? (
-                                <div className="flex items-center justify-between rounded-md border border-input bg-background p-2 text-sm h-10">
-                                    <p>{selectedSupplier.name}</p>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                            setSelectedSupplier(null);
-                                            form.setValue('supplierId', '');
-                                        }}
-                                    >
-                                        Change
-                                    </Button>
-                                </div>
-                            ) : (
-                                <Command className="rounded-lg border">
-                                    <CommandInput 
-                                        placeholder="Search suppliers by name..." 
-                                        value={supplierSearch} 
-                                        onValueChange={setSupplierSearch}
-                                    />
-                                    {supplierSearch.length > 0 && (
-                                        <CommandList>
-                                            {isLoadingSuppliers && <CommandItem disabled>Searching...</CommandItem>}
-                                            {supplierResults && supplierResults.length > 0 && (
-                                                <CommandGroup>
-                                                {supplierResults.map((s) => (
-                                                    <CommandItem
-                                                        key={s.id}
-                                                        value={s.name}
-                                                        onSelect={() => {
-                                                            form.setValue("supplierId", s.id)
-                                                            setSelectedSupplier(s);
-                                                            setSupplierSearch('');
-                                                        }}
-                                                    >
-                                                        {s.name}
-                                                    </CommandItem>
-                                                ))}
-                                                </CommandGroup>
-                                            )}
-                                            {!isLoadingSuppliers && (!supplierResults || supplierResults.length === 0) && supplierSearch.length > 1 && <CommandEmpty>No suppliers found.</CommandEmpty>}
-                                        </CommandList>
-                                    )}
-                                </Command>
-                            )}
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                {isManagement && (
+                  <FormField
+                      control={form.control}
+                      name="supplierId"
+                      render={({ field }) => (
+                          <FormItem className="flex flex-col">
+                              <FormLabel>Supplier</FormLabel>
+                              {selectedSupplier ? (
+                                  <div className="flex items-center justify-between rounded-md border border-input bg-background p-2 text-sm h-10">
+                                      <p>{selectedSupplier.name}</p>
+                                      <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                              setSelectedSupplier(null);
+                                              form.setValue('supplierId', '');
+                                          }}
+                                      >
+                                          Change
+                                      </Button>
+                                  </div>
+                              ) : (
+                                  <Command className="rounded-lg border">
+                                      <CommandInput 
+                                          placeholder="Search suppliers by name..." 
+                                          value={supplierSearch} 
+                                          onValueChange={setSupplierSearch}
+                                      />
+                                      {supplierSearch.length > 0 && (
+                                          <CommandList>
+                                              {isLoadingSuppliers && <CommandItem disabled>Searching...</CommandItem>}
+                                              {supplierResults && supplierResults.length > 0 && (
+                                                  <CommandGroup>
+                                                  {supplierResults.map((s) => (
+                                                      <CommandItem
+                                                          key={s.id}
+                                                          value={s.name}
+                                                          onSelect={() => {
+                                                              form.setValue("supplierId", s.id)
+                                                              setSelectedSupplier(s);
+                                                              setSupplierSearch('');
+                                                          }}
+                                                      >
+                                                          {s.name}
+                                                      </CommandItem>
+                                                  ))}
+                                                  </CommandGroup>
+                                              )}
+                                              {!isLoadingSuppliers && (!supplierResults || supplierResults.length === 0) && supplierSearch.length > 1 && <CommandEmpty>No suppliers found.</CommandEmpty>}
+                                          </CommandList>
+                                      )}
+                                  </Command>
+                              )}
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+                )}
                  <FormField
                     control={form.control}
                     name="sellingPrice"

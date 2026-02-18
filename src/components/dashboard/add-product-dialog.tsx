@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { addDocumentNonBlocking, updateDocumentNonBlocking, useFirestore, useStorage, useCollection, useMemoFirebase, useUser } from "@/firebase";
 import { collection, getDocs, query, where, limit, orderBy, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { FileUpload } from "@/components/ui/file-upload";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -56,11 +56,13 @@ export function AddProductDialog(props: AddProductDialogProps) {
   const open = isControlled ? props.open : internalOpen;
   const setOpen = isControlled ? props.onOpenChange : setInternalOpen;
 
-  const canViewCostPrice = userProfile && (userProfile.roles.includes('Owner') || userProfile.roles.includes('Admin'));
+  const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
+  const canViewCostPrice = isManagement;
 
   const suppliersQuery = useMemoFirebase(
     () => {
-      if (!firestore || !user || supplierSearch.length < 1) return null;
+      // FIX: Only query suppliers if user is Management AND has typed a search term.
+      if (!firestore || !user || !isManagement || supplierSearch.length < 1) return null;
       const searchTermCapitalized = supplierSearch.charAt(0).toUpperCase() + supplierSearch.slice(1);
       return query(
         collection(firestore, 'suppliers'),
@@ -70,7 +72,7 @@ export function AddProductDialog(props: AddProductDialogProps) {
         limit(10)
       );
     },
-    [firestore, user, supplierSearch]
+    [firestore, user, supplierSearch, isManagement]
   );
   const { data: supplierResults, isLoading: isLoadingSuppliers } = useCollection<Supplier>(suppliersQuery);
 
@@ -136,7 +138,7 @@ export function AddProductDialog(props: AddProductDialogProps) {
     if (quantityOnHand > 0) {
       const selectedSupplierName = selectedSupplier ? selectedSupplier.name : 'Initial Stock';
       initialBatches.push({
-        batchId: doc(collection(firestore, '_')).id, // generate new id
+        batchId: doc(collection(firestore, '_')).id,
         purchaseDate: new Date().toISOString(),
         originalQty: quantityOnHand,
         remainingQty: quantityOnHand,
@@ -293,63 +295,65 @@ export function AddProductDialog(props: AddProductDialogProps) {
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={form.control}
-                    name="supplierId"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                            <FormLabel>Supplier</FormLabel>
-                            {selectedSupplier ? (
-                                <div className="flex items-center justify-between rounded-md border border-input bg-background p-2 text-sm h-10">
-                                    <p>{selectedSupplier.name}</p>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                            setSelectedSupplier(null);
-                                            form.setValue('supplierId', '');
-                                        }}
-                                    >
-                                        Change
-                                    </Button>
-                                </div>
-                            ) : (
-                                <Command className="rounded-lg border">
-                                    <CommandInput 
-                                        placeholder="Search suppliers by name..." 
-                                        value={supplierSearch} 
-                                        onValueChange={setSupplierSearch}
-                                    />
-                                    {supplierSearch.length > 0 && (
-                                        <CommandList>
-                                            {isLoadingSuppliers && <CommandItem disabled>Searching...</CommandItem>}
-                                            {supplierResults && supplierResults.length > 0 && (
-                                                <CommandGroup>
-                                                {supplierResults.map((s) => (
-                                                    <CommandItem
-                                                        key={s.id}
-                                                        value={s.name}
-                                                        onSelect={() => {
-                                                            form.setValue("supplierId", s.id)
-                                                            setSelectedSupplier(s);
-                                                            setSupplierSearch('');
-                                                        }}
-                                                    >
-                                                        {s.name}
-                                                    </CommandItem>
-                                                ))}
-                                                </CommandGroup>
-                                            )}
-                                            {!isLoadingSuppliers && (!supplierResults || supplierResults.length === 0) && supplierSearch.length > 1 && <CommandEmpty>No suppliers found.</CommandEmpty>}
-                                        </CommandList>
-                                    )}
-                                </Command>
-                            )}
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                {isManagement && (
+                  <FormField
+                      control={form.control}
+                      name="supplierId"
+                      render={({ field }) => (
+                          <FormItem className="flex flex-col">
+                              <FormLabel>Supplier</FormLabel>
+                              {selectedSupplier ? (
+                                  <div className="flex items-center justify-between rounded-md border border-input bg-background p-2 text-sm h-10">
+                                      <p>{selectedSupplier.name}</p>
+                                      <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                              setSelectedSupplier(null);
+                                              form.setValue('supplierId', '');
+                                          }}
+                                      >
+                                          Change
+                                      </Button>
+                                  </div>
+                              ) : (
+                                  <Command className="rounded-lg border">
+                                      <CommandInput 
+                                          placeholder="Search suppliers by name..." 
+                                          value={supplierSearch} 
+                                          onValueChange={setSupplierSearch}
+                                      />
+                                      {supplierSearch.length > 0 && (
+                                          <CommandList>
+                                              {isLoadingSuppliers && <CommandItem disabled>Searching...</CommandItem>}
+                                              {supplierResults && supplierResults.length > 0 && (
+                                                  <CommandGroup>
+                                                  {supplierResults.map((s) => (
+                                                      <CommandItem
+                                                          key={s.id}
+                                                          value={s.name}
+                                                          onSelect={() => {
+                                                              form.setValue("supplierId", s.id)
+                                                              setSelectedSupplier(s);
+                                                              setSupplierSearch('');
+                                                          }}
+                                                      >
+                                                          {s.name}
+                                                      </CommandItem>
+                                                  ))}
+                                                  </CommandGroup>
+                                              )}
+                                              {!isLoadingSuppliers && (!supplierResults || supplierResults.length === 0) && supplierSearch.length > 1 && <CommandEmpty>No suppliers found.</CommandEmpty>}
+                                          </CommandList>
+                                      )}
+                                  </Command>
+                              )}
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+                )}
                 {canViewCostPrice && (
                   <FormField
                       control={form.control}

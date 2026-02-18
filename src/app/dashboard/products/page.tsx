@@ -49,6 +49,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EditProductDialog } from '@/components/dashboard/edit-product-dialog';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 // Matches the Firestore document structure for a product
 export type Product = {
@@ -90,6 +91,7 @@ export default function ProductsPage() {
   const firestore = useFirestore();
   const storage = useStorage();
   const { user } = useUser();
+  const { userProfile } = useUserProfile();
   const [deletingProduct, setDeletingProduct] = useState<FormattedProduct | null>(null);
   const [editingProduct, setEditingProduct] = useState<FormattedProduct | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
@@ -100,19 +102,24 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
 
+  const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
+
   const productsQuery = useMemoFirebase(
     () => (firestore && user ? collection(firestore, 'products') : null),
     [firestore, user]
   );
+
+  // CRITICAL FIX: Only fetch suppliers if the user is authorized.
+  // This prevents the "Missing or insufficient permissions" error for the Inventory role.
   const suppliersQuery = useMemoFirebase(
-    () => (firestore && user ? collection(firestore, 'suppliers') : null),
-    [firestore, user]
+    () => (firestore && user && isManagement ? collection(firestore, 'suppliers') : null),
+    [firestore, user, isManagement]
   );
 
   const { data: products, isLoading: isLoadingProducts } = useCollection<Omit<Product, 'id'>>(productsQuery);
   const { data: suppliers, isLoading: isLoadingSuppliers } = useCollection<Omit<Supplier, 'id'>>(suppliersQuery);
   
-  const isLoading = isLoadingProducts || isLoadingSuppliers;
+  const isLoading = isLoadingProducts || (isManagement && isLoadingSuppliers);
 
   const supplierMap = useMemo(() => {
     if (!suppliers) return new Map();
@@ -127,9 +134,9 @@ export default function ProductsPage() {
       status: getStatus(p.quantityOnHand),
       price: `₱${p.sellingPrice.toFixed(2)}`,
       image: p.images?.[0] || 'https://placehold.co/64x64',
-      supplierName: p.supplierId ? supplierMap.get(p.supplierId) : 'N/A',
+      supplierName: isManagement ? (p.supplierId ? supplierMap.get(p.supplierId) : 'N/A') : 'Restricted',
     }));
-  }, [products, supplierMap]);
+  }, [products, supplierMap, isManagement]);
 
   const filteredProducts = useMemo(() => {
     let results = formattedProducts;
