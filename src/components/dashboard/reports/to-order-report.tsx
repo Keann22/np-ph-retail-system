@@ -23,14 +23,15 @@ export function ToOrderReport() {
 
     const toOrder = useMemo(() => {
         if (!products) return [];
-        return products.filter(p => p.quantityOnHand <= 0).sort((a, b) => a.quantityOnHand - b.quantityOnHand);
+        // Only show products with negative stock (oversold)
+        return products.filter(p => p.quantityOnHand < 0).sort((a, b) => a.quantityOnHand - b.quantityOnHand);
     }, [products]);
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle>To Order (Procurement List)</CardTitle>
-                <CardDescription>Products with zero or negative stock that need restocking.</CardDescription>
+                <CardDescription>Oversold products that need immediate restocking to fulfill current demand.</CardDescription>
             </CardHeader>
             <CardContent>
                 <Table>
@@ -53,7 +54,7 @@ export function ToOrderReport() {
                                 <TableCell className="font-mono text-xs">{p.sku}</TableCell>
                                 <TableCell className="font-medium">{p.name}</TableCell>
                                 <TableCell className="text-right">
-                                    <Badge variant={p.quantityOnHand < 0 ? "destructive" : "secondary"}>
+                                    <Badge variant="destructive">
                                         {p.quantityOnHand}
                                     </Badge>
                                 </TableCell>
@@ -62,8 +63,9 @@ export function ToOrderReport() {
                     </TableBody>
                 </Table>
                 {!isLoading && toOrder.length === 0 && (
-                    <div className="text-center py-10 text-muted-foreground">
-                        All products are currently in stock!
+                    <div className="flex flex-col items-center justify-center text-center py-12 border-2 border-dashed rounded-lg mt-4">
+                        <p className="text-lg font-semibold text-primary">No negative stock items</p>
+                        <p className="text-sm text-muted-foreground mt-1">All orders are covered by current inventory levels.</p>
                     </div>
                 )}
             </CardContent>

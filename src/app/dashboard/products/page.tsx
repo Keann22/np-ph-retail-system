@@ -98,6 +98,8 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
 
+  const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
+
   const productsQuery = useMemoFirebase(
     () => (firestore && user ? collection(firestore, 'products') : null),
     [firestore, user]
@@ -162,7 +164,6 @@ export default function ProductsPage() {
         // Delete images from Storage
         if (productToDelete.images && productToDelete.images.length > 0) {
             const deletePromises = productToDelete.images.map(imageUrl => {
-                // Don't delete placeholder images from placehold.co
                 if (imageUrl.includes('placehold.co')) {
                     return Promise.resolve();
                 }
@@ -172,7 +173,6 @@ export default function ProductsPage() {
             await Promise.all(deletePromises);
         }
 
-        // Delete Firestore document
         const productDocRef = doc(firestore, 'products', productToDelete.id);
         await deleteDoc(productDocRef);
 
@@ -195,7 +195,7 @@ export default function ProductsPage() {
 
     const idsToDelete = [...selectedProductIds];
     setShowBulkDeleteConfirm(false);
-    setSelectedProductIds([]); // Clear selection
+    setSelectedProductIds([]);
 
     toast({
       title: "Bulk Deletion Initiated",
@@ -208,19 +208,16 @@ export default function ProductsPage() {
 
         if (docSnap.exists()) {
             const productData = docSnap.data() as Product;
-            // Delete images from Storage
             if (productData.images && productData.images.length > 0) {
                 await Promise.all(productData.images.map(imageUrl => {
                     if (imageUrl.includes('placehold.co')) {
                         return Promise.resolve();
                     }
                     const imageFileRef = storageRef(storage, imageUrl);
-                    // Log error but don't fail the whole batch
                     return deleteObject(imageFileRef).catch(err => console.error(`Failed to delete image ${imageUrl}`, err));
                 }));
             }
         }
-        // Delete Firestore document
         await deleteDoc(productDocRef);
         return productId;
     }));
@@ -286,7 +283,7 @@ export default function ProductsPage() {
                     </SelectContent>
                 </Select>
             </div>
-            {selectedProductIds.length > 0 && (
+            {selectedProductIds.length > 0 && isManagement && (
                 <Button
                     variant="destructive"
                     onClick={() => setShowBulkDeleteConfirm(true)}
@@ -329,19 +326,13 @@ export default function ProductsPage() {
             <TableBody>
               {isLoading && Array.from({ length: 10 }).map((_, i) => (
                   <TableRow key={i}>
-                      <TableCell>
-                        <Skeleton className="h-4 w-4" />
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                          <Skeleton className="aspect-square rounded-md h-16 w-16" />
-                      </TableCell>
+                      <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                      <TableCell className="hidden sm:table-cell"><Skeleton className="aspect-square rounded-md h-16 w-16" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-12" /></TableCell>
-                      <TableCell>
-                          <Skeleton className="h-8 w-8" />
-                      </TableCell>
+                      <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                   </TableRow>
               ))}
               {paginatedProducts && paginatedProducts.map((product) => (
@@ -390,14 +381,16 @@ export default function ProductsPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => setEditingProduct(product)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                        {isManagement && <DropdownMenuItem>Duplicate</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => setViewingHistoryProduct(product)}>View History</DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                          onClick={() => setDeletingProduct(product)}
-                        >
-                          Delete
-                        </DropdownMenuItem>
+                        {isManagement && (
+                            <DropdownMenuItem
+                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                            onClick={() => setDeletingProduct(product)}
+                            >
+                            Delete
+                            </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
