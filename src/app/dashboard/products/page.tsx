@@ -64,16 +64,10 @@ export type Product = {
   quantityOnHand: number;
 };
 
-type Supplier = {
-    id: string;
-    name: string;
-}
-
 export type FormattedProduct = Product & {
     status: { text: 'In Stock' | 'Low Stock' | 'Out of Stock'; variant: 'outline' | 'default' | 'destructive'; };
     price: string;
     image: string;
-    supplierName?: string;
 }
 
 const getStatus = (stock: number | undefined | null): { text: 'In Stock' | 'Low Stock' | 'Out of Stock'; variant: 'outline' | 'default' | 'destructive' } => {
@@ -102,29 +96,12 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
 
-  const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
-
   const productsQuery = useMemoFirebase(
     () => (firestore && user ? collection(firestore, 'products') : null),
     [firestore, user]
   );
 
-  // CRITICAL FIX: Only fetch suppliers if the user is authorized.
-  // This prevents the "Missing or insufficient permissions" error for the Inventory role.
-  const suppliersQuery = useMemoFirebase(
-    () => (firestore && user && isManagement ? collection(firestore, 'suppliers') : null),
-    [firestore, user, isManagement]
-  );
-
-  const { data: products, isLoading: isLoadingProducts } = useCollection<Omit<Product, 'id'>>(productsQuery);
-  const { data: suppliers, isLoading: isLoadingSuppliers } = useCollection<Omit<Supplier, 'id'>>(suppliersQuery);
-  
-  const isLoading = isLoadingProducts || (isManagement && isLoadingSuppliers);
-
-  const supplierMap = useMemo(() => {
-    if (!suppliers) return new Map();
-    return new Map(suppliers.map(s => [s.id, s.name]));
-  }, [suppliers]);
+  const { data: products, isLoading } = useCollection<Omit<Product, 'id'>>(productsQuery);
 
   const formattedProducts: FormattedProduct[] = useMemo(() => {
     if (!products) return [];
@@ -134,9 +111,8 @@ export default function ProductsPage() {
       status: getStatus(p.quantityOnHand),
       price: `₱${p.sellingPrice.toFixed(2)}`,
       image: p.images?.[0] || 'https://placehold.co/64x64',
-      supplierName: isManagement ? (p.supplierId ? supplierMap.get(p.supplierId) : 'N/A') : 'Restricted',
     }));
-  }, [products, supplierMap, isManagement]);
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     let results = formattedProducts;
@@ -339,7 +315,6 @@ export default function ProductsPage() {
                 </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="hidden md:table-cell">Supplier</TableHead>
                 <TableHead>Price</TableHead>
                 <TableHead className="hidden md:table-cell">
                   Stock
@@ -360,7 +335,6 @@ export default function ProductsPage() {
                       </TableCell>
                       <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                      <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell className="hidden md:table-cell"><Skeleton className="h-4 w-12" /></TableCell>
                       <TableCell>
@@ -399,7 +373,6 @@ export default function ProductsPage() {
                       {product.status.text}
                     </Badge>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">{product.supplierName}</TableCell>
                   <TableCell>{product.price}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {product.quantityOnHand ?? 0}
