@@ -1,9 +1,10 @@
 'use client';
 
 import { Activity, CreditCard, DollarSign, TrendingUp } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 
 import {
   Card,
@@ -15,6 +16,7 @@ import { Overview } from '@/components/dashboard/overview';
 import { RecentSales } from '@/components/dashboard/recent-sales';
 import { AiRecommendations } from '@/components/dashboard/ai-recommendations';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 // Types based on backend.json
 type Order = {
@@ -39,21 +41,33 @@ type Expense = {
 export default function DashboardPage() {
     const firestore = useFirestore();
     const { user } = useUser();
+    const { userProfile } = useUserProfile();
+    const router = useRouter();
 
-    // Queries
+    const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
+    const isInventoryOnly = useMemo(() => userProfile?.roles.includes('Inventory') && !userProfile?.roles.includes('Sales') && !userProfile?.roles.includes('Admin') && !userProfile?.roles.includes('Owner'), [userProfile]);
+
+    // Redirect Inventory users away from the dashboard
+    useEffect(() => {
+        if (isInventoryOnly) {
+            router.push('/dashboard/products');
+        }
+    }, [isInventoryOnly, router]);
+
+    // Queries - Conditional based on role to prevent permission errors
     const ordersQuery = useMemoFirebase(
-        () => (firestore && user ? collection(firestore, 'orders') : null),
-        [firestore, user]
+        () => (firestore && user && !isInventoryOnly ? collection(firestore, 'orders') : null),
+        [firestore, user, isInventoryOnly]
     );
 
     const orderItemsQuery = useMemoFirebase(
-        () => (firestore && user ? collection(firestore, 'orderItems') : null),
-        [firestore, user]
+        () => (firestore && user && !isInventoryOnly ? collection(firestore, 'orderItems') : null),
+        [firestore, user, isInventoryOnly]
     );
 
     const expensesQuery = useMemoFirebase(
-        () => (firestore && user ? collection(firestore, 'expenses') : null),
-        [firestore, user]
+        () => (firestore && user && isManagement ? collection(firestore, 'expenses') : null),
+        [firestore, user, isManagement]
     );
     
     // Data fetching
@@ -61,10 +75,10 @@ export default function DashboardPage() {
     const { data: orderItems, isLoading: isLoadingOrderItems } = useCollection<OrderItem>(orderItemsQuery);
     const { data: expenses, isLoading: isLoadingExpenses } = useCollection<Expense>(expensesQuery);
 
-    const isLoading = isLoadingOrders || isLoadingOrderItems || isLoadingExpenses;
+    const isLoading = isLoadingOrders || isLoadingOrderItems || (isManagement && isLoadingExpenses);
 
     const dashboardMetrics = useMemo(() => {
-        if (!orders || !orderItems || !expenses) {
+        if (!orders || !orderItems || (isManagement && !expenses)) {
             return {
                 totalRevenue: 0,
                 netProfit: 0,
@@ -75,31 +89,28 @@ export default function DashboardPage() {
         }
 
         const validOrders = orders.filter(o => o.orderStatus !== 'Cancelled' && o.orderStatus !== 'Returned');
-
         const totalRevenue = validOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-
         const salesCount = validOrders.length;
         
         const accountsReceivableData = orders.filter(o => o.balanceDue > 0);
         const accountsReceivable = accountsReceivableData.reduce((sum, order) => sum + order.balanceDue, 0);
         const arCount = accountsReceivableData.length;
 
-        // Net Profit Calculation
-        const validOrderIds = new Set(validOrders.map(o => o.id));
-        const relevantOrderItems = orderItems.filter(item => validOrderIds.has(item.orderId));
-        
-        const totalCogs = relevantOrderItems.reduce((sum, item) => sum + ((item.costPriceAtSale || 0) * (item.quantity || 0)), 0);
-        
-        const operatingExpenses = expenses.reduce((sum, expense) => {
-            if (expense.category.toLowerCase() !== 'cost of goods sold') {
-                return sum + expense.amount;
-            }
-            return sum;
-        }, 0);
-        
-        // Note: Bad Debts are not included here for simplicity, but could be added.
-        const grossProfit = totalRevenue - totalCogs;
-        const netProfit = grossProfit - operatingExpenses;
+        // Net Profit Calculation (Only if management can see expenses)
+        let netProfit = 0;
+        if (isManagement && expenses) {
+            const validOrderIds = new Set(validOrders.map(o => o.id));
+            const relevantOrderItems = orderItems.filter(item => validOrderIds.has(item.orderId));
+            const totalCogs = relevantOrderItems.reduce((sum, item) => sum + ((item.costPriceAtSale || 0) * (item.quantity || 0)), 0);
+            const operatingExpenses = expenses.reduce((sum, expense) => {
+                if (expense.category.toLowerCase() !== 'cost of goods sold') {
+                    return sum + expense.amount;
+                }
+                return sum;
+            }, 0);
+            const grossProfit = totalRevenue - totalCogs;
+            netProfit = grossProfit - operatingExpenses;
+        }
 
         return {
             totalRevenue,
@@ -109,7 +120,11 @@ export default function DashboardPage() {
             arCount,
         }
 
-    }, [orders, orderItems, expenses]);
+    }, [orders, orderItems, expenses, isManagement]);
+
+  if (isInventoryOnly) {
+    return <div className="flex items-center justify-center min-h-[50vh]">Redirecting to Inventory...</div>;
+  }
 
   return (
     <>
@@ -139,7 +154,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
              {isLoading ? <Skeleton className="h-8 w-3/4 mt-1" /> : (
-                <div className="text-2xl font-bold">₱{dashboardMetrics.netProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <div className="text-2xl font-bold">
+                    {isManagement ? `₱${dashboardMetrics.netProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Restricted'}
+                </div>
             )}
             <p className="text-xs text-muted-foreground">
               Revenue minus COGS and operating expenses.

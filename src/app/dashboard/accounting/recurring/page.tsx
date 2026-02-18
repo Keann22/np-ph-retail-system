@@ -1,11 +1,13 @@
 'use client';
 
-import { MoreHorizontal } from 'lucide-react';
+import { useMemo } from 'react';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -17,11 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
-import { Skeleton } from '@/components/ui/skeleton';
 import { AddRecurringExpenseDialog } from '@/components/dashboard/accounting/add-recurring-expense-dialog';
-
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 // Matches the Firestore document structure for a recurring expense
 type RecurringExpense = {
@@ -35,12 +34,26 @@ type RecurringExpense = {
 export default function RecurringExpensesPage() {
   const firestore = useFirestore();
   const { user } = useUser();
+  const { userProfile } = useUserProfile();
+
+  const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
 
   const recurringExpensesQuery = useMemoFirebase(
-    () => (firestore && user ? query(collection(firestore, 'recurringExpenses'), orderBy('dayOfMonth', 'asc')) : null),
-    [firestore, user]
+    () => (firestore && user && isManagement ? query(collection(firestore, 'recurringExpenses'), orderBy('dayOfMonth', 'asc')) : null),
+    [firestore, user, isManagement]
   );
   const { data: recurringExpenses, isLoading } = useCollection<RecurringExpense>(recurringExpensesQuery);
+
+  if (userProfile && !isManagement) {
+    return (
+        <Card className="m-6">
+            <CardHeader>
+                <CardTitle>Access Denied</CardTitle>
+                <CardDescription>You do not have permission to view recurring expenses.</CardDescription>
+            </CardHeader>
+        </Card>
+    );
+  }
 
   return (
     <Card>
@@ -81,7 +94,6 @@ export default function RecurringExpensesPage() {
                 <TableCell>{expense.category}</TableCell>
                 <TableCell className="text-right">₱{expense.amount.toFixed(2)}</TableCell>
                 <TableCell>
-                  {/* Actions dropdown will go here */}
                 </TableCell>
               </TableRow>
             ))}

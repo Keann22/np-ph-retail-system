@@ -21,8 +21,12 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
-import Image from 'next/image';
-
+import { useAuth, useUser } from '@/firebase';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState, useMemo } from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,12 +39,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Logo } from '@/components/logo';
-import { useAuth, useUser } from '@/firebase';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { cn } from '@/lib/utils';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 export default function DashboardLayout({
   children,
@@ -49,52 +48,68 @@ export default function DashboardLayout({
 }) {
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
+  const { userProfile } = useUserProfile();
   const router = useRouter();
   const pathname = usePathname();
 
   const [openInventory, setOpenInventory] = useState(false);
   const [openAccounting, setOpenAccounting] = useState(false);
 
-  // The pending orders query that was causing permission errors has been removed for stability.
-  // The badge feature can be re-introduced later with a more robust data fetching strategy.
-  const pendingOrdersCount = null;
+  const roles = useMemo(() => userProfile?.roles || [], [userProfile]);
+  const isManagement = roles.includes('Owner') || roles.includes('Admin');
+  const isSales = roles.includes('Sales');
+  const isInventory = roles.includes('Inventory');
 
-  const navLinks = [
-    { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart, badge: pendingOrdersCount && pendingOrdersCount > 0 ? pendingOrdersCount : null },
-    { href: '/dashboard/products', label: 'Products', icon: Package },
-    {
-        id: 'inventory',
-        label: 'Inventory Management',
-        icon: Archive,
-        isOpen: openInventory,
-        setIsOpen: setOpenInventory,
-        subItems: [
-            { href: '/dashboard/inventory/scan-receipt', label: 'Upload Receipt', icon: Upload },
-            { href: '/dashboard/inventory/receive', label: 'Bulk Receive', icon: Truck },
-            { href: '/dashboard/inventory/restock', label: 'Restock / Purchase', icon: ArrowDownUp },
-            { href: '/dashboard/inventory/batches', label: 'Stock Batch List', icon: ListChecks }
-        ]
-    },
-    {
-      id: 'accounting',
-      label: 'Accounting',
-      icon: BookCopy,
-      isOpen: openAccounting,
-      setIsOpen: setOpenAccounting,
+  const navLinks = useMemo(() => {
+    const links = [];
+
+    // Dashboard only for Sales or Management
+    if (isManagement || isSales) {
+      links.push({ href: '/dashboard', label: 'Dashboard', icon: Home });
+    }
+
+    links.push({ href: '/dashboard/orders', label: 'Orders', icon: ShoppingCart });
+    links.push({ href: '/dashboard/products', label: 'Products', icon: Package });
+
+    links.push({
+      id: 'inventory',
+      label: 'Inventory Management',
+      icon: Archive,
+      isOpen: openInventory,
+      setIsOpen: setOpenInventory,
       subItems: [
+        { href: '/dashboard/inventory/scan-receipt', label: 'Upload Receipt', icon: Upload },
+        { href: '/dashboard/inventory/receive', label: 'Bulk Receive', icon: Truck },
+        { href: '/dashboard/inventory/restock', label: 'Restock / Purchase', icon: ArrowDownUp },
+        { href: '/dashboard/inventory/batches', label: 'Stock Batch List', icon: ListChecks }
+      ]
+    });
+
+    if (isManagement) {
+      links.push({
+        id: 'accounting',
+        label: 'Accounting',
+        icon: BookCopy,
+        isOpen: openAccounting,
+        setIsOpen: setOpenAccounting,
+        subItems: [
           { href: '/dashboard/accounting/expenses', label: 'Expenses', icon: Wallet },
           { href: '/dashboard/accounting/recurring', label: 'Recurring', icon: Repeat },
-      ]
-    },
-    { href: '/dashboard/customers', label: 'Customers', icon: Users },
-    { href: '/dashboard/suppliers', label: 'Suppliers', icon: Building },
-    { href: '/dashboard/users', label: 'User Management', icon: Users },
-    { href: '/dashboard/reports', label: 'Reports', icon: LineChart },
-  ];
-  
+        ]
+      });
+      links.push({ href: '/dashboard/customers', label: 'Customers', icon: Users });
+      links.push({ href: '/dashboard/suppliers', label: 'Suppliers', icon: Building });
+      links.push({ href: '/dashboard/users', label: 'User Management', icon: Users });
+    } else if (isSales) {
+      links.push({ href: '/dashboard/customers', label: 'Customers', icon: Users });
+    }
+
+    links.push({ href: '/dashboard/reports', label: 'Reports', icon: LineChart });
+
+    return links;
+  }, [isManagement, isSales, openInventory, openAccounting]);
+
   useEffect(() => {
-    // If the current path is under inventory, open the collapsible
     if (pathname.startsWith('/dashboard/inventory')) {
       setOpenInventory(true);
     }
@@ -102,7 +117,6 @@ export default function DashboardLayout({
       setOpenAccounting(true);
     }
   }, [pathname]);
-
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -113,16 +127,16 @@ export default function DashboardLayout({
   const handleLogout = () => {
     auth.signOut();
   };
-  
+
   if (isUserLoading || !user) {
     return <div className="flex items-center justify-center min-h-screen bg-background">Loading...</div>
   }
-  
+
   const renderNavLinks = (isMobile = false) => {
     return navLinks.map((link) => {
       const Icon = link.icon;
 
-      if (link.subItems) {
+      if ('subItems' in link && link.subItems) {
         const isParentActive = pathname.startsWith(`/dashboard/${link.id}`);
         return (
           <Collapsible key={link.id} open={link.isOpen} onOpenChange={link.setIsOpen}>
@@ -136,28 +150,28 @@ export default function DashboardLayout({
               <Icon className={isMobile ? 'h-5 w-5' : 'h-4 w-4'} />
               {link.label}
               <ChevronDown className={cn(
-                  "ml-auto h-4 w-4 transition-transform",
-                  link.isOpen && "rotate-180"
+                "ml-auto h-4 w-4 transition-transform",
+                link.isOpen && "rotate-180"
               )} />
             </CollapsibleTrigger>
             <CollapsibleContent className="pl-7 pt-2 space-y-1">
-                {link.subItems.map(subLink => {
+              {link.subItems.map(subLink => {
                 const SubIcon = subLink.icon;
                 const isSubActive = pathname === subLink.href;
                 return (
-                    <Link
+                  <Link
                     key={subLink.href}
                     href={subLink.href}
                     className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                        isSubActive && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                      isSubActive && 'bg-sidebar-accent text-sidebar-accent-foreground',
                     )}
-                    >
+                  >
                     <SubIcon className="h-4 w-4" />
                     {subLink.label}
-                    </Link>
+                  </Link>
                 )
-                })}
+              })}
             </CollapsibleContent>
           </Collapsible>
         )
@@ -169,20 +183,15 @@ export default function DashboardLayout({
           key={link.href}
           href={link.href}
           className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all',
-              isActive
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-              isMobile && 'mx-[-0.65rem] gap-4 rounded-xl'
-            )}
+            'flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-all',
+            isActive
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            isMobile && 'mx-[-0.65rem] gap-4 rounded-xl'
+          )}
         >
           <Icon className={isMobile ? 'h-5 w-5' : 'h-4 w-4'} />
           {link.label}
-          {link.badge && (
-            <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              {link.badge}
-            </Badge>
-          )}
         </Link>
       );
     });
@@ -236,7 +245,6 @@ export default function DashboardLayout({
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1">
-            {/* Header content can go here, e.g. search bar */}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

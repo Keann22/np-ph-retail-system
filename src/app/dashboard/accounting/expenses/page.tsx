@@ -1,6 +1,10 @@
 'use client';
 
-import { MoreHorizontal } from 'lucide-react';
+import { useMemo } from 'react';
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
+import { format } from 'date-fns';
 import {
   Card,
   CardContent,
@@ -17,14 +21,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
-import { Skeleton } from '@/components/ui/skeleton';
-import { format } from 'date-fns';
 import { AddExpenseDialog } from '@/components/dashboard/accounting/add-expense-dialog';
-import { useMemo } from 'react';
 import { PostRecurringExpensesButton } from '@/components/dashboard/accounting/post-recurring-expenses-button';
-
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 // Matches the Firestore document structure for an expense
 type Expense = {
@@ -38,10 +37,13 @@ type Expense = {
 export default function ExpensesPage() {
   const firestore = useFirestore();
   const { user } = useUser();
+  const { userProfile } = useUserProfile();
+
+  const isManagement = useMemo(() => userProfile?.roles.some(r => ['Admin', 'Owner'].includes(r)), [userProfile]);
 
   const expensesQuery = useMemoFirebase(
-    () => (firestore && user ? query(collection(firestore, 'expenses'), orderBy('expenseDate', 'desc')) : null),
-    [firestore, user]
+    () => (firestore && user && isManagement ? query(collection(firestore, 'expenses'), orderBy('expenseDate', 'desc')) : null),
+    [firestore, user, isManagement]
   );
   const { data: expenses, isLoading } = useCollection<Omit<Expense, 'id'>>(expensesQuery);
 
@@ -50,6 +52,16 @@ export default function ExpensesPage() {
     return expenses.reduce((sum, exp) => sum + exp.amount, 0);
   }, [expenses]);
 
+  if (userProfile && !isManagement) {
+    return (
+        <Card className="m-6">
+            <CardHeader>
+                <CardTitle>Access Denied</CardTitle>
+                <CardDescription>You do not have permission to view financial records.</CardDescription>
+            </CardHeader>
+        </Card>
+    );
+  }
 
   return (
     <Card>

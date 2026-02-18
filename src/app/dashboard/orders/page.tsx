@@ -42,6 +42,7 @@ import { useCollection, useFirestore, useMemoFirebase, useUser, updateDocumentNo
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Progress } from '@/components/ui/progress';
 import { useRouter } from 'next/navigation';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 
 // Matches the Firestore document structure for an order
@@ -96,6 +97,10 @@ export default function OrdersPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+  const { userProfile } = useUserProfile();
+
+  const isInventoryOnly = useMemo(() => userProfile?.roles.includes('Inventory') && !userProfile?.roles.includes('Sales') && !userProfile?.roles.includes('Admin') && !userProfile?.roles.includes('Owner'), [userProfile]);
+  const canCreateOrder = useMemo(() => userProfile?.roles.some(r => ['Sales', 'Admin', 'Owner'].includes(r)), [userProfile]);
 
   const ordersQuery = useMemoFirebase(
     () => (firestore && user ? query(collection(firestore, 'orders'), orderBy('orderDate', 'desc')) : null),
@@ -127,14 +132,6 @@ export default function OrdersPage() {
     }));
   }, [orders, customerMap]);
   
-  const processOrderReturn = async (orderId: string) => {
-    toast({
-        variant: "default",
-        title: 'Action Disabled',
-        description: 'Return processing must be implemented.'
-    });
-  }
-
 
   const handleStatusChange = (orderId: string, newStatus: Order['orderStatus']) => {
     if (!firestore) return;
@@ -156,7 +153,7 @@ export default function OrdersPage() {
               View and manage customer sales orders.
             </CardDescription>
           </div>
-          <AddOrderDialog />
+          {canCreateOrder && <AddOrderDialog />}
         </CardHeader>
         <CardContent>
           <Table>
@@ -231,9 +228,11 @@ export default function OrdersPage() {
                           <DropdownMenuItem onClick={() => router.push(`/dashboard/orders/${order.id}`)}>
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setLogPaymentOrder(order)}>
-                            Log Payment
-                          </DropdownMenuItem>
+                          {!isInventoryOnly && (
+                            <DropdownMenuItem onClick={() => setLogPaymentOrder(order)}>
+                                Log Payment
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>
@@ -256,14 +255,18 @@ export default function OrdersPage() {
                               </DropdownMenuRadioGroup>
                             </DropdownMenuSubContent>
                           </DropdownMenuSub>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                            onClick={() => handleStatusChange(order.id, 'Cancelled')}
-                            disabled={order.orderStatus === 'Cancelled' || order.orderStatus === 'Returned'}
-                          >
-                            Cancel Order
-                          </DropdownMenuItem>
+                          {!isInventoryOnly && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                    onClick={() => handleStatusChange(order.id, 'Cancelled')}
+                                    disabled={order.orderStatus === 'Cancelled' || order.orderStatus === 'Returned'}
+                                >
+                                    Cancel Order
+                                </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -276,7 +279,7 @@ export default function OrdersPage() {
               <div className="flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg p-12 mt-4">
                   <p className="text-lg font-semibold">No orders found</p>
                   <p className="text-muted-foreground mt-2">
-                      Click "New Order" to get started.
+                      {canCreateOrder ? 'Click "New Order" to get started.' : 'No orders matched your criteria.'}
                   </p>
               </div>
           )}
