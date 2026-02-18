@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -47,7 +48,7 @@ export interface FirebaseServicesAndUser {
 }
 
 // Return type for useUser() - specific to user auth state
-export interface UserHookResult { // Renamed from UserAuthHookResult for consistency if desired, or keep as UserAuthHookResult
+export interface UserHookResult { 
   user: User | null;
   isUserLoading: boolean;
   userError: Error | null;
@@ -58,10 +59,6 @@ export const FirebaseContext = createContext<FirebaseContextState | undefined>(u
 
 /**
  * Ensures a user profile document exists in Firestore.
- * If it doesn't, it creates one, assigning the 'Owner' role if they are the first user.
- * This function is designed to be called in the background without blocking UI updates.
- * @param firestore - The Firestore instance.
- * @param firebaseUser - The authenticated Firebase user.
  */
 async function ensureUserProfileExists(firestore: Firestore, firebaseUser: User) {
     const userDocRef = doc(firestore, 'users', firebaseUser.uid);
@@ -75,7 +72,7 @@ async function ensureUserProfileExists(firestore: Firestore, firebaseUser: User)
             let roles = ['Sales']; // Default role
             if (firstUserSnapshot.empty || (firstUserSnapshot.docs.length === 1 && firstUserSnapshot.docs[0].id === firebaseUser.uid)) {
                 // This is the very first user in the system.
-                roles = ['Owner', 'Admin', 'Warehouse Manager', 'Sales'];
+                roles = ['Owner', 'Admin', 'Inventory', 'Sales'];
             }
 
             const [firstName, ...lastNameParts] = firebaseUser.displayName?.split(' ') || ['New', 'User'];
@@ -90,7 +87,6 @@ async function ensureUserProfileExists(firestore: Firestore, firebaseUser: User)
             });
         }
     } catch (dbError) {
-        // Log the error but don't throw, as this is a background process.
         console.error("Error during background user profile check/creation:", dbError);
     }
 }
@@ -108,11 +104,10 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
-    isUserLoading: true, // Start loading until first auth event
+    isUserLoading: true, 
     userError: null,
   });
 
-  // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
     if (!auth || !firestore) {
       setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth and Firestore services must be provided.") });
@@ -124,15 +119,12 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     const unsubscribe = onAuthStateChanged(
       auth,
       (firebaseUser) => {
-        // Immediately update the auth state to unblock the application.
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
-
-        // After updating state, perform the non-blocking database operation in the background.
         if (firebaseUser) {
             ensureUserProfileExists(firestore, firebaseUser);
         }
       },
-      (error) => { // Auth listener error
+      (error) => { 
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
         setUserAuthState({ user: null, isUserLoading: false, userError: error });
       }
@@ -140,7 +132,6 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     return () => unsubscribe();
   }, [auth, firestore]);
 
-  // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
     const servicesAvailable = !!(firebaseApp && firestore && auth && storage);
     return {
@@ -163,21 +154,14 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   );
 };
 
-/**
- * Hook to access core Firebase services and user authentication state.
- * Throws error if core services are not available or used outside provider.
- */
 export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
-
   if (context === undefined) {
     throw new Error('useFirebase must be used within a FirebaseProvider.');
   }
-
   if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth || !context.storage) {
     throw new Error('Firebase core services not available. Check FirebaseProvider props.');
   }
-
   return {
     firebaseApp: context.firebaseApp,
     firestore: context.firestore,
@@ -189,25 +173,21 @@ export const useFirebase = (): FirebaseServicesAndUser => {
   };
 };
 
-/** Hook to access Firebase Auth instance. */
 export const useAuth = (): Auth => {
   const { auth } = useFirebase();
   return auth;
 };
 
-/** Hook to access Firestore instance. */
 export const useFirestore = (): Firestore => {
   const { firestore } = useFirebase();
   return firestore;
 };
 
-/** Hook to access Firebase Storage instance. */
 export const useStorage = (): Storage => {
     const { storage } = useFirebase();
     return storage;
 };
 
-/** Hook to access Firebase App instance. */
 export const useFirebaseApp = (): FirebaseApp => {
   const { firebaseApp } = useFirebase();
   return firebaseApp;
@@ -217,19 +197,12 @@ type MemoFirebase <T> = T & {__memo?: boolean};
 
 export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | (MemoFirebase<T>) {
   const memoized = useMemo(factory, deps);
-  
   if(typeof memoized !== 'object' || memoized === null) return memoized;
   (memoized as MemoFirebase<T>).__memo = true;
-  
   return memoized;
 }
 
-/**
- * Hook specifically for accessing the authenticated user's state.
- * This provides the User object, loading status, and any auth errors.
- * @returns {UserHookResult} Object with user, isUserLoading, userError.
- */
-export const useUser = (): UserHookResult => { // Renamed from useAuthUser
-  const { user, isUserLoading, userError } = useFirebase(); // Leverages the main hook
+export const useUser = (): UserHookResult => { 
+  const { user, isUserLoading, userError } = useFirebase();
   return { user, isUserLoading, userError };
 };

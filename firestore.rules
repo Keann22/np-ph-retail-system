@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -10,7 +11,6 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      // Owner's active email
       return isSignedIn() && request.auth.token.email == 'ornoskeneth@gmail.com';
     }
 
@@ -18,7 +18,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Safer, non-recursive role check
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
@@ -33,7 +32,6 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /users/{userId} {
-      // isOwner branch is evaluated first and doesn't call hasAnyRole, preventing recursion
       allow get: if isOwner(userId) || isSuperAdmin() || (isSignedIn() && getUserData().roles.hasAny(['Admin', 'Owner']));
       allow list: if isSuperAdmin() || (isSignedIn() && getUserData().roles.hasAny(['Admin', 'Owner']));
       allow create: if isOwner(userId);
@@ -43,7 +41,7 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow read: if isSignedIn();
-      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Warehouse Manager', 'Admin', 'Owner']);
+      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Admin', 'Owner']);
     }
     
     match /categories/{categoryId} {
@@ -52,32 +50,28 @@ service cloud.firestore {
     }
 
     match /inventoryMovements/{inventoryMovementId} {
-      // Simplified read access for any signed-in user to track stock history
-      allow read: if isSignedIn();
-      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Warehouse Manager', 'Admin', 'Owner', 'Sales']);
+      allow list, get: if isSignedIn();
+      allow write: if isSuperAdmin() || hasAnyRole(['Inventory', 'Admin', 'Owner', 'Sales']);
     }
 
     match /customers/{customerId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner', 'Inventory', 'Warehouse Manager']);
+      allow list: if isSignedIn(); // Inventory needs to map names for printing
       allow get: if isSignedIn(); 
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /orders/{orderId} {
-      allow list: if isSignedIn();
-      allow get: if isSignedIn();
-      allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner', 'Inventory', 'Warehouse Manager']);
+      allow list, get: if isSignedIn();
+      allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner', 'Inventory']);
     }
 
     match /orderItems/{orderItemId} {
-      allow list: if isSignedIn();
-      allow get: if isSignedIn();
+      allow list, get: if isSignedIn();
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 
     match /payments/{paymentId} {
-      allow list: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
-      allow get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
+      allow list, get: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
       allow write: if isSuperAdmin() || hasAnyRole(['Sales', 'Admin', 'Owner']);
     }
 

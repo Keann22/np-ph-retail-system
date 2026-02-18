@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -27,7 +28,7 @@
             "enum": [
               "Owner",
               "Admin",
-              "Warehouse Manager",
+              "Inventory",
               "Sales"
             ]
           }
@@ -651,11 +652,11 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles.  The `userId` parameter is used to enforce ownership-based access control.",
+          "description": "Stores user profiles.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user, corresponding to their Firebase Auth UID."
+              "description": "The Firebase Auth UID."
             }
           ]
         }
@@ -667,27 +668,11 @@
           "schema": {
             "$ref": "#/backend/entities/Product"
           },
-          "description": "Stores product information. Accessible to users with appropriate roles (e.g., Admin, Warehouse Manager).",
+          "description": "Stores product information.",
           "params": [
             {
               "name": "productId",
               "description": "The unique identifier of the product."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/categories/{categoryId}",
-        "definition": {
-          "entityName": "Category",
-          "schema": {
-            "$ref": "#/backend/entities/Category"
-          },
-          "description": "Stores product categories.",
-          "params": [
-            {
-              "name": "categoryId",
-              "description": "The unique identifier of the category."
             }
           ]
         }
@@ -699,7 +684,7 @@
           "schema": {
             "$ref": "#/backend/entities/InventoryMovement"
           },
-          "description": "Logs all inventory movement events. Accessible to users with appropriate roles (e.g., Admin, Warehouse Manager).",
+          "description": "Logs all inventory movement events.",
           "params": [
             {
               "name": "inventoryMovementId",
@@ -715,7 +700,7 @@
           "schema": {
             "$ref": "#/backend/entities/Customer"
           },
-          "description": "Stores customer information. Accessible to sales and admin roles.",
+          "description": "Stores customer information.",
           "params": [
             {
               "name": "customerId",
@@ -731,7 +716,7 @@
           "schema": {
             "$ref": "#/backend/entities/Order"
           },
-          "description": "Stores order information.  Accessible to sales and admin roles.",
+          "description": "Stores order information.",
           "params": [
             {
               "name": "orderId",
@@ -747,7 +732,7 @@
           "schema": {
             "$ref": "#/backend/entities/OrderItem"
           },
-          "description": "Stores individual items within an order. Accessible to sales and admin roles.",
+          "description": "Stores individual items within an order.",
           "params": [
             {
               "name": "orderItemId",
@@ -763,7 +748,7 @@
           "schema": {
             "$ref": "#/backend/entities/Payment"
           },
-          "description": "Stores payment information. Accessible to sales and admin roles.",
+          "description": "Stores payment information.",
           "params": [
             {
               "name": "paymentId",
@@ -779,7 +764,7 @@
           "schema": {
             "$ref": "#/backend/entities/Expense"
           },
-          "description": "Stores expense information. Accessible to owner and admin roles.",
+          "description": "Stores expense information.",
           "params": [
             {
               "name": "expenseId",
@@ -795,59 +780,11 @@
           "schema": {
             "$ref": "#/backend/entities/RecurringExpense"
           },
-          "description": "Stores definitions for recurring monthly expenses. Accessible to owner and admin roles.",
+          "description": "Stores definitions for recurring monthly expenses.",
           "params": [
             {
               "name": "recurringExpenseId",
               "description": "The unique identifier of the recurring expense definition."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/returns/{returnId}",
-        "definition": {
-          "entityName": "Return",
-          "schema": {
-            "$ref": "#/backend/entities/Return"
-          },
-          "description": "Stores return information. Accessible to sales and admin roles.",
-          "params": [
-            {
-              "name": "returnId",
-              "description": "The unique identifier of the return."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/refunds/{refundId}",
-        "definition": {
-          "entityName": "Refund",
-          "schema": {
-            "$ref": "#/backend/entities/Refund"
-          },
-          "description": "Stores refund information. Accessible to sales and admin roles.",
-          "params": [
-            {
-              "name": "refundId",
-              "description": "The unique identifier of the refund."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/badDebts/{badDebtId}",
-        "definition": {
-          "entityName": "BadDebt",
-          "schema": {
-            "$ref": "#/backend/entities/BadDebt"
-          },
-          "description": "Stores bad debt information. Accessible to owner and admin roles.",
-          "params": [
-            {
-              "name": "badDebtId",
-              "description": "The unique identifier of the bad debt entry."
             }
           ]
         }
@@ -868,7 +805,6 @@
           ]
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to provide a secure, scalable, and debuggable solution for the RetailFlow application, adhering to the core design principles and strategy mandates.  Authorization Independence is achieved via denormalization.  Specifically, the `members` map within collaborative data structures (like `products`) denormalizes user roles.  This eliminates the need for `get()` calls in security rules, enabling atomic operations (transactions/batches). This is crucial for maintaining data consistency and simplifying security rule logic. Structural Segregation (Homogeneous Security Posture) is enforced by creating separate collections for entities with distinct access requirements.  For example, user-owned data is segregated under `/users/{userId}`, collaborative data resides at the root level (e.g., `/products`), and global roles are managed via dedicated collections (`/roles`).  This ensures that all documents within a collection share the same security rules.  Access Modeling is consistently applied using path-based ownership for user-owned data (e.g., `/users/{userId}/orders/{orderId}`) and membership maps for collaborative data.  This standardization simplifies security rule creation and maintenance.  The structure supports the required QAPs (Rules are not Filters) by using segregation. Only authorized data can be read given that the user has the role inside the Role collection, enforcing secure list operations."
+    ]
   }
 }

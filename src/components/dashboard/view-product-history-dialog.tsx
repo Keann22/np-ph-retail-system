@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -17,7 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -54,16 +55,24 @@ export function ViewProductHistoryDialog({ product, open, onOpenChange }: ViewPr
   const firestore = useFirestore();
   const { user } = useUser();
 
+  // Optimized query: No orderBy to avoid missing index errors. 
+  // We sort the results in memory instead.
   const movementsQuery = useMemoFirebase(() => {
     if (!firestore || !user || !product) return null;
     return query(
       collection(firestore, 'inventoryMovements'),
-      where('productId', '==', product.id),
-      orderBy('timestamp', 'desc')
+      where('productId', '==', product.id)
     );
   }, [firestore, user, product]);
 
-  const { data: movements, isLoading } = useCollection<InventoryMovement>(movementsQuery);
+  const { data: rawMovements, isLoading } = useCollection<InventoryMovement>(movementsQuery);
+
+  const movements = useMemo(() => {
+    if (!rawMovements) return [];
+    return [...rawMovements].sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [rawMovements]);
 
   if (!product) {
     return null;
@@ -121,7 +130,7 @@ export function ViewProductHistoryDialog({ product, open, onOpenChange }: ViewPr
               ))}
             </TableBody>
           </Table>
-          {!isLoading && (!movements || movements.length === 0) && (
+          {!isLoading && movements.length === 0 && (
             <div className="flex flex-col items-center justify-center text-center py-12">
               <p className="text-muted-foreground italic">No movement history found for this product.</p>
             </div>

@@ -1,3 +1,4 @@
+
 'use client';
 import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -8,7 +9,7 @@ export type UserProfile = {
     firstName: string;
     lastName: string;
     email: string;
-    roles: ('Owner' | 'Admin' | 'Warehouse Manager' | 'Sales')[];
+    roles: ('Owner' | 'Admin' | 'Inventory' | 'Sales')[];
 }
 
 export function useUserProfile() {
